@@ -140,9 +140,10 @@ export function LineageGraph({
   return (
     <div className="w-full min-w-0 overflow-hidden rounded-xl border border-border bg-[var(--card)]">
       <svg
+        width="100%"
         viewBox={`0 0 ${width} ${height}`}
         preserveAspectRatio="xMinYMid meet"
-        className="block h-auto w-full"
+        className="block h-auto max-w-full"
         role="img"
         aria-label="Lineage graph"
       >

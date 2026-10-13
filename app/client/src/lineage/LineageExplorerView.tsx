@@ -158,8 +158,8 @@ export function LineageExplorerView() {
   };
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-5 space-y-5">
+    <div className="h-full overflow-y-auto overflow-x-hidden">
+      <div className="w-full min-w-0 px-4 py-5 space-y-5">
         {/* Header + asset picker */}
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <div>
@@ -210,8 +210,8 @@ export function LineageExplorerView() {
         <KpiCards kpis={kpis} />
 
         {/* Graph + access panel */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4 items-start">
-          <div className="rounded-xl border border-border bg-card p-3">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(220px,260px)] gap-4 items-start min-w-0">
+          <div className="min-w-0 rounded-xl border border-border bg-card p-3">
             <div className="flex items-center justify-between px-1 pb-2">
               <div className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
                 Lineage graph — upstream sources → {selectedAsset?.assetName ?? 'asset'} → downstream consumers

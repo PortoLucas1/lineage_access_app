@@ -138,12 +138,13 @@ export function LineageGraph({
   }
 
   return (
-    <div className="overflow-auto rounded-xl border border-border bg-[var(--card)]">
+    <div className="w-full min-w-0 overflow-hidden rounded-xl border border-border bg-[var(--card)]">
       <svg
-        width={width}
-        height={height}
         viewBox={`0 0 ${width} ${height}`}
-        style={{ minWidth: '100%', display: 'block' }}
+        preserveAspectRatio="xMinYMid meet"
+        className="block h-auto w-full"
+        role="img"
+        aria-label="Lineage graph"
       >
         <defs>
           {/* dot-grid background, like the UC lineage canvas */}

@@ -1,0 +1,11 @@
+.DS_Store
+.venv/
+node_modules/
+*.pyc
+__pycache__/
+.env
+.env.local
+.env.*
+!.env.example
+!.env.template
+.databrickscfg

@@ -1,0 +1,68 @@
+{
+  // App config (JSONC). Loaded by server/server.ts loadAppConfig.
+  //
+  // ${VAR} / ${VAR:default} placeholders are substituted against process.env
+  // BEFORE JSON parsing. So catalog/schema/resource-IDs live in env (one
+  // source of truth), NOT as literals here — set them in `.env` (local dev +
+  // preview) or via the DAB (deployed; finalize_app.sh writes app.yaml's env).
+  //
+  // CUSTOMIZE per demo: branding, assistantScript, and data.tables names.
+
+  // ─ Agent backend. This is a Simple (Genie-only) demo: masEndpointName is
+  //   empty and genieSpaceId is set. server/agent/lineageops.ts makeTools
+  //   registers askGenieTool (not ask_mas) against genieSpaceId.
+  "masEndpointName": "${MAS_ENDPOINT_NAME:}",
+  "genieSpaceId":    "${GENIE_SPACE_ID:}",
+
+  // Agent LLM. Needs the Responses API (openai/v1/responses). databricks-gpt-5-4
+  // is the baseline; a newer GPT endpoint with /responses enabled works too.
+  "agentModel": "databricks-gpt-5-4",
+
+  // MLflow trace path. Empty → chat shows "Trace pending…". Auto-created
+  // at boot via lib/mlflow.ts.
+  "mlflowExperimentId": "",
+  "agentMlflowExperimentPath": "${AGENT_MLFLOW_EXPERIMENT_PATH:}",
+
+  // Embedded AI/BI dashboard (UUID). Empty → drop the /dashboard route +
+  // sidebar entry. Also a tile on /platform.
+  "dashboardId": "${DASHBOARD_ID:}",
+
+  // Workspace resource IDs → deep-link URLs via /api/resources.
+  "pipelineId":        "${PIPELINE_ID:}",
+  "warehouseId":       "${WAREHOUSE_ID:}",
+  "kaEndpointName":    "${KA_ENDPOINT_NAME:}",
+  "lakebaseProjectId": "${LAKEBASE_PROJECT_ID:}",
+  "appUrl":            "${APP_URL:}",
+
+  // Delta source for boot-time Lakebase mirror (server/db/sync.ts). catalog +
+  // schema come from env; the table NAMES are the demo's gold tables.
+  "data": {
+    "catalog": "${DEMO_CATALOG}",
+    "schema":  "${DEMO_SCHEMA}",
+    "tables": {
+      "assets":        "gold_assets",
+      "lineageEdges":  "gold_lineage_edges",
+      "accessGrants":  "gold_access_grants",
+      "lineageEvents": "gold_lineage_events_daily",
+      "columns":        "gold_columns",
+      "columnLineage":  "gold_column_lineage"
+    }
+  },
+
+  // Surfaces in dock header + page titles.
+  "branding": {
+    "appName": "Northpeak Lineage & Access Console"
+  },
+
+  // Dock's "Suggested next" chip walks this list. Step N unlocks once the
+  // previous assistant message contains any triggerAfter[] substring.
+  "assistantScript": [
+    {
+      "prompt": "What feeds the Executive Revenue dashboard, and who can access those tables?"
+    },
+    {
+      "prompt": "Who can access customer_pii?",
+      "triggerAfter": ["access", "grant", "pipeline", "customer_pii"]
+    }
+  ]
+}

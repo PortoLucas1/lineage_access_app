@@ -1,0 +1,32 @@
+{
+  "capabilities": {
+    "buildable": [
+      "synthetic-data-gen",
+      "aibi-dashboards",
+      "genie",
+      "databricks-apps",
+      "lakebase"
+    ],
+    "talking_track": [
+      "lakeflow-connect",
+      "unity-catalog",
+      "genie-one",
+      "genie-code"
+    ]
+  },
+  "resource_suffix": "b89e91",
+  "created_resources": {
+    "catalog": "solution_builder",
+    "schema": "demo_lineage_access_for_every_team_b89e91",
+    "warehouse_id": "a94beda3aab06fa4",
+    "genie_space_id": "01f1b12cccb71b29a73e98588b893349",
+    "dashboard_id": "01f1b12d527e11e39eadaaf8b9c11fa4",
+    "app": {
+      "name": "dbgen-lineage-access",
+      "deployment_note": "Preview-only (not deployed). Genie-only Simple app; Lakebase on shared dbdemos-asset-generator project."
+    },
+    "lakebase_project_id": "2ab8ad6f-0376-442a-bf52-cc74907201cf",
+    "lakebase_project_slug": "dbdemos-asset-generator",
+    "lakebase_database": "dbgen_lineage_access"
+  }
+}

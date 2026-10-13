@@ -1,0 +1,1215 @@
+{
+  "datasets": [
+    {
+      "name": "ds_events",
+      "displayName": "Daily lineage events",
+      "queryLines": [
+        "SELECT date, new_edges, new_edges_from_mv, assets_touched FROM gold_lineage_events_daily "
+      ]
+    },
+    {
+      "name": "ds_assets",
+      "displayName": "Assets",
+      "queryLines": [
+        "SELECT asset_name, asset_type, criticality, has_pii, domain, downstream_count, blast_radius_usd, principals_with_access, has_over_broad_grant, CASE WHEN has_pii THEN 'PII' ELSE 'No PII' END AS pii_label FROM gold_assets "
+      ]
+    },
+    {
+      "name": "ds_grants",
+      "displayName": "Access grants",
+      "queryLines": [
+        "SELECT asset_name, asset_type, asset_has_pii, asset_criticality, principal, principal_type, department, privilege, member_count, is_over_broad, CASE WHEN is_over_broad THEN 'Over-broad' ELSE 'Scoped' END AS grant_scope, granted_by, granted_date FROM gold_access_grants "
+      ]
+    },
+    {
+      "name": "ds_edges",
+      "displayName": "MV lineage graph (nodes + edges)",
+      "queryLines": [
+        "WITH node_pos AS ( SELECT * FROM VALUES ",
+        "  ('customer_pii', 16.0, 68.0), ('orders_gold', 16.0, 34.0), ('mv_exec_revenue_daily', 50.0, 51.0), ",
+        "  ('Executive Revenue', 84.0, 86.0), ('Executive Revenue AI/BI', 84.0, 63.0), ('finance_monthly_close', 84.0, 40.0) ",
+        "  AS t(asset_name, cx, cy) ), ",
+        "nodes AS ( SELECT 'node' AS kind, a.asset_name AS label, a.asset_type AS ntype, a.has_pii AS pii, ",
+        "  a.principals_with_access AS principals, a.blast_radius_usd AS blast, p.cx AS x, p.cy AS y, ",
+        "  CAST(NULL AS DOUBLE) AS x2, CAST(NULL AS DOUBLE) AS y2, ",
+        "  p.cx - 14.0 AS bx0, p.cx + 14.0 AS bx1, p.cy - 8.0 AS by0, p.cy + 8.0 AS by1 ",
+        "  FROM gold_assets a JOIN node_pos p ON a.asset_name = p.asset_name ",
+        "  UNION ALL SELECT 'node', 'Other downstream (15 assets)', 'group', false, 0, 0, 84.0, 17.0, ",
+        "  CAST(NULL AS DOUBLE), CAST(NULL AS DOUBLE), 70.0, 98.0, 9.0, 25.0 ), ",
+        "edges AS ( SELECT 'edge' AS kind, CAST(NULL AS STRING) AS label, CAST(NULL AS STRING) AS ntype, ",
+        "  CAST(NULL AS BOOLEAN) AS pii, CAST(NULL AS INT) AS principals, CAST(NULL AS INT) AS blast, ",
+        "  sx AS x, sy AS y, tx AS x2, ty AS y2, CAST(NULL AS DOUBLE) AS bx0, CAST(NULL AS DOUBLE) AS bx1, ",
+        "  CAST(NULL AS DOUBLE) AS by0, CAST(NULL AS DOUBLE) AS by1 ",
+        "  FROM VALUES (30.0,68.0,36.0,53.0),(30.0,34.0,36.0,49.0),(64.0,51.0,70.0,86.0), ",
+        "  (64.0,51.0,70.0,63.0),(64.0,51.0,70.0,40.0),(64.0,51.0,70.0,17.0) AS e(sx,sy,tx,ty) ) ",
+        "SELECT * FROM nodes UNION ALL SELECT * FROM edges "
+      ]
+    },
+    {
+      "name": "ds_mv",
+      "displayName": "MV headline (single row)",
+      "queryLines": [
+        "SELECT downstream_count, blast_radius_usd FROM gold_assets WHERE asset_name = 'mv_exec_revenue_daily' "
+      ]
+    },
+    {
+      "name": "ds_overbroad_pii",
+      "displayName": "Over-broad PII exposure (single row)",
+      "queryLines": [
+        "SELECT MAX(member_count) AS pii_exposed FROM gold_access_grants WHERE is_over_broad AND asset_has_pii "
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "overview",
+      "displayName": "Governance Overview",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "title",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Northpeak Lineage & Access \u2014 Governance Overview\n",
+                "\n",
+                "**The story** \u2014 three weeks ago a new materialized view **`mv_exec_revenue_daily`** was published. Its lineage fan-out spiked (18 new downstream edges), and it now feeds the **Executive Revenue Tableau dashboard** and a **$250K/yr finance workflow** \u2014 while reading from **`customer_pii`**, a PII table the **`all-analysts`** group (42 people) can read via an over-broad grant.\n",
+                "\n",
+                "**What to see** \u2014 the edge-trend line spikes 3 weeks ago (orange = the new MV's fan-out) \u00b7 the blast-radius bar puts `mv_exec_revenue_daily` on top at 18 downstream assets \u00b7 the Criticality \u00d7 PII matrix flags the high-criticality + PII quadrant where `customer_pii` sits."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_assets",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_assets",
+                  "fields": [
+                    {
+                      "name": "count(asset_name)",
+                      "expression": "COUNT(`asset_name`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "count(asset_name)",
+                  "displayName": "Governed Assets",
+                  "format": {
+                    "type": "number",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Governed Assets"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_new_edges",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_events",
+                  "fields": [
+                    {
+                      "name": "sum(new_edges_from_mv)",
+                      "expression": "SUM(`new_edges_from_mv`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(new_edges_from_mv)",
+                  "displayName": "New MV Edges",
+                  "format": {
+                    "type": "number",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "New Edges from the MV"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 3,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_blast_radius",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_mv",
+                  "fields": [
+                    {
+                      "name": "blast_radius_usd",
+                      "expression": "`blast_radius_usd`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "blast_radius_usd",
+                  "displayName": "Blast Radius at Risk",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Blast Radius at Risk"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 3,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_pii_exposed",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_overbroad_pii",
+                  "fields": [
+                    {
+                      "name": "pii_exposed",
+                      "expression": "`pii_exposed`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "pii_exposed",
+                  "displayName": "Principals w/ over-broad PII access",
+                  "format": {
+                    "type": "number",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Principals w/ over-broad PII access"
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 3,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "edge_trend_chart",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_events",
+                  "fields": [
+                    {
+                      "name": "daily(date)",
+                      "expression": "DATE_TRUNC(\"DAY\", `date`)"
+                    },
+                    {
+                      "name": "sum(new_edges)",
+                      "expression": "SUM(`new_edges`)"
+                    },
+                    {
+                      "name": "sum(new_edges_from_mv)",
+                      "expression": "SUM(`new_edges_from_mv`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "annotations": [
+                {
+                  "type": "vertical-line",
+                  "encodings": {
+                    "x": {
+                      "dataValue": "2026-08-25T00:00:00.000",
+                      "dataType": "DATETIME"
+                    },
+                    "label": {
+                      "value": "mv_exec_revenue_daily published"
+                    }
+                  }
+                }
+              ],
+              "frame": {
+                "showTitle": true,
+                "title": "New lineage edges per day \u2014 baseline vs new MV",
+                "description": "Edge creation spiked ~3 weeks ago. Orange = the new MV's fan-out. Vertical bar = the day it was published.",
+                "showDescription": true
+              },
+              "encodings": {
+                "x": {
+                  "fieldName": "daily(date)",
+                  "displayName": "Day",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "fields": [
+                    {
+                      "fieldName": "sum(new_edges)",
+                      "displayName": "All new edges"
+                    },
+                    {
+                      "fieldName": "sum(new_edges_from_mv)",
+                      "displayName": "New from MV"
+                    }
+                  ]
+                },
+                "color": {
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "All new edges",
+                        "color": "#3C6997"
+                      },
+                      {
+                        "value": "New from MV",
+                        "color": "#FE9000"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 6,
+            "width": 12,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "blast_radius_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_assets",
+                  "fields": [
+                    {
+                      "name": "asset_name",
+                      "expression": "`asset_name`"
+                    },
+                    {
+                      "name": "sum(downstream_count)",
+                      "expression": "SUM(`downstream_count`)"
+                    },
+                    {
+                      "name": "asset_type",
+                      "expression": "`asset_type`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "frame": {
+                "showTitle": true,
+                "title": "Top assets by downstream count",
+                "description": "mv_exec_revenue_daily towers over everything \u2014 18 downstream assets.",
+                "showDescription": true
+              },
+              "encodings": {
+                "x": {
+                  "fieldName": "sum(downstream_count)",
+                  "displayName": "Downstream assets",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "asset_name",
+                  "displayName": "Asset",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "x-reversed"
+                    }
+                  },
+                  "axis": {
+                    "hideTitle": true
+                  }
+                },
+                "color": {
+                  "fieldName": "asset_type",
+                  "displayName": "Type",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "table",
+                        "color": "#094074"
+                      },
+                      {
+                        "value": "materialized_view",
+                        "color": "#FE9000"
+                      },
+                      {
+                        "value": "view",
+                        "color": "#3C6997"
+                      },
+                      {
+                        "value": "tableau_dashboard",
+                        "color": "#5ADBFF"
+                      },
+                      {
+                        "value": "dbsql_dashboard",
+                        "color": "#8ACAFF"
+                      },
+                      {
+                        "value": "workflow",
+                        "color": "#FFDD4A"
+                      },
+                      {
+                        "value": "notebook",
+                        "color": "#B0B7C0"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 11,
+            "width": 7,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "asset_type_donut",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_assets",
+                  "fields": [
+                    {
+                      "name": "count(asset_name)",
+                      "expression": "COUNT(`asset_name`)"
+                    },
+                    {
+                      "name": "asset_type",
+                      "expression": "`asset_type`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "frame": {
+                "showTitle": true,
+                "title": "Assets by type"
+              },
+              "encodings": {
+                "angle": {
+                  "fieldName": "count(asset_name)",
+                  "displayName": "Assets",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "asset_type",
+                  "displayName": "Type",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "table",
+                        "color": "#094074"
+                      },
+                      {
+                        "value": "materialized_view",
+                        "color": "#FE9000"
+                      },
+                      {
+                        "value": "view",
+                        "color": "#3C6997"
+                      },
+                      {
+                        "value": "tableau_dashboard",
+                        "color": "#5ADBFF"
+                      },
+                      {
+                        "value": "dbsql_dashboard",
+                        "color": "#8ACAFF"
+                      },
+                      {
+                        "value": "workflow",
+                        "color": "#FFDD4A"
+                      },
+                      {
+                        "value": "notebook",
+                        "color": "#B0B7C0"
+                      }
+                    ]
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 7,
+            "y": 11,
+            "width": 5,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "criticality_pii_matrix",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_assets",
+                  "fields": [
+                    {
+                      "name": "criticality",
+                      "expression": "`criticality`"
+                    },
+                    {
+                      "name": "pii_label",
+                      "expression": "`pii_label`"
+                    },
+                    {
+                      "name": "count(asset_name)",
+                      "expression": "COUNT(`asset_name`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "heatmap",
+              "frame": {
+                "showTitle": true,
+                "title": "Criticality \u00d7 PII",
+                "description": "The high-criticality + PII quadrant is the one to watch \u2014 customer_pii lives here.",
+                "showDescription": true
+              },
+              "encodings": {
+                "x": {
+                  "fieldName": "criticality",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "axis": {
+                    "title": "Criticality"
+                  }
+                },
+                "y": {
+                  "fieldName": "pii_label",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "axis": {
+                    "hideTitle": true
+                  }
+                },
+                "color": {
+                  "fieldName": "count(asset_name)",
+                  "displayName": "Assets",
+                  "scale": {
+                    "type": "quantitative",
+                    "colorRamp": {
+                      "mode": "custom-sequential",
+                      "colors": {
+                        "start": "#EAF0F7",
+                        "end": "#094074"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 17,
+            "width": 12,
+            "height": 6
+          }
+        }
+      ]
+    },
+    {
+      "name": "deepdive",
+      "displayName": "Lineage & Access",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "deepdive_title",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Lineage & Access Deep-Dive\n",
+                "\n",
+                "**The path** \u2014 `customer_pii` (PII, high-criticality) + `orders_gold` flow into **`mv_exec_revenue_daily`**, which fans out to the **Executive Revenue Tableau dashboard**, the AI/BI mirror, and the **$250K `finance_monthly_close` workflow** \u2014 plus 15 more downstream assets.\n",
+                "\n",
+                "**The exposure** \u2014 `customer_pii` is readable by more principals than any other PII table, driven by the over-broad **`all-analysts`** grant (42 people). The table below lists the 3 grants flagged for remediation. Filter by domain / criticality on the left."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "lineage_path_card",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Revenue-pipeline lineage\n",
+                "\n",
+                "**`customer_pii`** *(table \u00b7 PII)*  +  **`orders_gold`** *(table)*\n",
+                "&nbsp;&nbsp;&nbsp;&nbsp;\u2193\n",
+                "**`mv_exec_revenue_daily`** *(materialized view \u2014 published 3 weeks ago)*\n",
+                "&nbsp;&nbsp;&nbsp;&nbsp;\u2193\n",
+                "**Executive Revenue** *(Tableau dashboard)* \u00b7 **Executive Revenue AI/BI** *(dashboard)* \u00b7 **`finance_monthly_close`** *(workflow \u00b7 $250K/yr)* \u00b7 **+ 15 more downstream assets**\n",
+                "\n",
+                "> The new MV sits between a **PII source** and a **$250K workflow** \u2014 a change to it ripples to all 18 downstream assets. Open the **Lineage & Access Console** app for the interactive Unity-Catalog-style graph (pan the sources \u2192 MV \u2192 consumers, click any node for its access panel)."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 12,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "sec_access",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Access exposure"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 11,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "exposure_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_assets",
+                  "fields": [
+                    {
+                      "name": "asset_name",
+                      "expression": "`asset_name`"
+                    },
+                    {
+                      "name": "sum(principals_with_access)",
+                      "expression": "SUM(`principals_with_access`)"
+                    },
+                    {
+                      "name": "has_over_broad_grant",
+                      "expression": "`has_over_broad_grant`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "frame": {
+                "showTitle": true,
+                "title": "PII assets by principals with access",
+                "description": "customer_pii tops it \u2014 flagged for an over-broad grant.",
+                "showDescription": true
+              },
+              "encodings": {
+                "x": {
+                  "fieldName": "sum(principals_with_access)",
+                  "displayName": "Principals",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "asset_name",
+                  "displayName": "Asset",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "x-reversed"
+                    }
+                  },
+                  "axis": {
+                    "hideTitle": true
+                  }
+                },
+                "color": {
+                  "fieldName": "has_over_broad_grant",
+                  "displayName": "Over-broad",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "true",
+                        "color": "#FFDD4A"
+                      },
+                      {
+                        "value": "false",
+                        "color": "#3C6997"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 12,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "access_by_dept",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_grants",
+                  "fields": [
+                    {
+                      "name": "department",
+                      "expression": "`department`"
+                    },
+                    {
+                      "name": "sum(member_count)",
+                      "expression": "SUM(`member_count`)"
+                    },
+                    {
+                      "name": "grant_scope",
+                      "expression": "`grant_scope`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "mark": {
+                "layout": "stack"
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Effective access by department",
+                "description": "Where broad access concentrates. Yellow = over-broad grants.",
+                "showDescription": true
+              },
+              "encodings": {
+                "x": {
+                  "fieldName": "department",
+                  "displayName": "Department",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "y-reversed"
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(member_count)",
+                  "displayName": "Effective principals",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "grant_scope",
+                  "displayName": "Scope",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "Over-broad",
+                        "color": "#FFDD4A"
+                      },
+                      {
+                        "value": "Scoped",
+                        "color": "#3C6997"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 12,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "sec_overbroad",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Over-broad grants \u2014 remediation candidates"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 18,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "overbroad_grants_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_grants",
+                  "fields": [
+                    {
+                      "name": "asset_name",
+                      "expression": "`asset_name`"
+                    },
+                    {
+                      "name": "asset_type",
+                      "expression": "`asset_type`"
+                    },
+                    {
+                      "name": "principal",
+                      "expression": "`principal`"
+                    },
+                    {
+                      "name": "principal_type",
+                      "expression": "`principal_type`"
+                    },
+                    {
+                      "name": "member_count",
+                      "expression": "`member_count`"
+                    },
+                    {
+                      "name": "privilege",
+                      "expression": "`privilege`"
+                    },
+                    {
+                      "name": "department",
+                      "expression": "`department`"
+                    },
+                    {
+                      "name": "granted_by",
+                      "expression": "`granted_by`"
+                    },
+                    {
+                      "name": "granted_date",
+                      "expression": "`granted_date`"
+                    },
+                    {
+                      "name": "is_over_broad",
+                      "expression": "`is_over_broad`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "frame": {
+                "showTitle": true,
+                "title": "Over-broad grants",
+                "description": "3 grants flagged \u2014 all-analysts (42) on customer_pii leads. These are the remediation candidates the console acts on.",
+                "showDescription": true
+              },
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "asset_name",
+                    "displayName": "Asset"
+                  },
+                  {
+                    "fieldName": "asset_type",
+                    "displayName": "Type"
+                  },
+                  {
+                    "fieldName": "principal",
+                    "displayName": "Principal"
+                  },
+                  {
+                    "fieldName": "principal_type",
+                    "displayName": "Principal type"
+                  },
+                  {
+                    "fieldName": "member_count",
+                    "displayName": "# People"
+                  },
+                  {
+                    "fieldName": "privilege",
+                    "displayName": "Privilege"
+                  },
+                  {
+                    "fieldName": "department",
+                    "displayName": "Department"
+                  },
+                  {
+                    "fieldName": "granted_by",
+                    "displayName": "Granted by"
+                  },
+                  {
+                    "fieldName": "granted_date",
+                    "displayName": "Granted"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 19,
+            "width": 12,
+            "height": 6
+          }
+        }
+      ]
+    },
+    {
+      "name": "global_filters",
+      "displayName": "Global Filters",
+      "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "gf_domain",
+            "queries": [
+              {
+                "name": "q_domain",
+                "query": {
+                  "datasetName": "ds_assets",
+                  "fields": [
+                    {
+                      "name": "domain",
+                      "expression": "`domain`"
+                    },
+                    {
+                      "name": "domain_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "frame": {
+                "showTitle": true,
+                "title": "Domain"
+              },
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "domain",
+                    "queryName": "q_domain"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "gf_criticality",
+            "queries": [
+              {
+                "name": "q_crit",
+                "query": {
+                  "datasetName": "ds_assets",
+                  "fields": [
+                    {
+                      "name": "criticality",
+                      "expression": "`criticality`"
+                    },
+                    {
+                      "name": "criticality_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "frame": {
+                "showTitle": true,
+                "title": "Criticality"
+              },
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "criticality",
+                    "queryName": "q_crit"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 0,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "gf_asset_type",
+            "queries": [
+              {
+                "name": "q_type_assets",
+                "query": {
+                  "datasetName": "ds_assets",
+                  "fields": [
+                    {
+                      "name": "asset_type",
+                      "expression": "`asset_type`"
+                    },
+                    {
+                      "name": "asset_type_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "q_type_grants",
+                "query": {
+                  "datasetName": "ds_grants",
+                  "fields": [
+                    {
+                      "name": "asset_type",
+                      "expression": "`asset_type`"
+                    },
+                    {
+                      "name": "asset_type_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "frame": {
+                "showTitle": true,
+                "title": "Asset type"
+              },
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "asset_type",
+                    "queryName": "q_type_assets"
+                  },
+                  {
+                    "fieldName": "asset_type",
+                    "queryName": "q_type_grants"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 0,
+            "width": 2,
+            "height": 2
+          }
+        }
+      ]
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "canvasBackgroundColor": {
+        "light": "#F5F7FB",
+        "dark": "#0F1419"
+      },
+      "widgetBackgroundColor": {
+        "light": "#FFFFFF",
+        "dark": "#161B22"
+      },
+      "widgetBorderColor": {
+        "light": "#FFFFFF",
+        "dark": "#161B22"
+      },
+      "fontColor": {
+        "light": "#1F2530",
+        "dark": "#E8ECF0"
+      },
+      "selectionColor": {
+        "light": "#4F7CE3",
+        "dark": "#8ACAFF"
+      },
+      "visualizationColors": [
+        "#094074",
+        "#3C6997",
+        "#5ADBFF",
+        "#FFDD4A",
+        "#FE9000"
+      ],
+      "widgetHeaderAlignment": "LEFT"
+    },
+    "genieSpace": {
+      "isEnabled": true,
+      "overrideId": "01f1b12cccb71b29a73e98588b893349",
+      "enablementMode": "ENABLED"
+    }
+  }
+}

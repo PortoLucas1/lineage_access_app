@@ -1,0 +1,83 @@
+{
+  "version": 2,
+  "config": {
+    "sample_questions": [
+      {"id": "11111111111111111111111111111111", "question": ["What are the 13 governed assets by type?"]},
+      {"id": "22222222222222222222222222222222", "question": ["What are the five endpoints downstream of mv_exec_revenue_daily?"]},
+      {"id": "33333333333333333333333333333333", "question": ["Who can access customer_pii?"]},
+      {"id": "44444444444444444444444444444444", "question": ["List the three users and five user groups."]}
+    ]
+  },
+  "data_sources": {
+    "tables": [
+      {
+        "identifier": "solution_builder.demo_lineage_access_for_every_team_b89e91.gold_access_grants",
+        "column_configs": [
+          {"column_name": "asset_name", "enable_entity_matching": true},
+          {"column_name": "principal", "enable_entity_matching": true},
+          {"column_name": "principal_type", "enable_format_assistance": true},
+          {"column_name": "privilege", "enable_format_assistance": true},
+          {"column_name": "member_count", "description": ["Number of people represented by a user or group grant."]}
+        ]
+      },
+      {
+        "identifier": "solution_builder.demo_lineage_access_for_every_team_b89e91.gold_assets",
+        "column_configs": [
+          {"column_name": "asset_name", "enable_entity_matching": true},
+          {"column_name": "asset_type", "enable_format_assistance": true, "description": ["table, view, materialized_view, tableau_dashboard, dbsql_dashboard, notebook, or agent."]},
+          {"column_name": "downstream_count", "description": ["Direct downstream fan-out; mv_exec_revenue_daily has five endpoints."]},
+          {"column_name": "has_pii", "description": ["TRUE when the asset contains PII."]}
+        ]
+      },
+      {
+        "identifier": "solution_builder.demo_lineage_access_for_every_team_b89e91.gold_lineage_edges",
+        "column_configs": [
+          {"column_name": "source_asset_name", "enable_entity_matching": true},
+          {"column_name": "target_asset_name", "enable_entity_matching": true},
+          {"column_name": "edge_type", "enable_format_assistance": true},
+          {"column_name": "is_new_from_mv", "description": ["TRUE for the focused mv_exec_revenue_daily lineage event."]}
+        ]
+      },
+      {
+        "identifier": "solution_builder.demo_lineage_access_for_every_team_b89e91.gold_lineage_events_daily",
+        "column_configs": [
+          {"column_name": "new_edges", "description": ["New lineage edges created that day."]},
+          {"column_name": "new_edges_from_mv", "description": ["Edges associated with the new materialized view."]}
+        ]
+      },
+      {
+        "identifier": "solution_builder.demo_lineage_access_for_every_team_b89e91.raw_principals",
+        "column_configs": [
+          {"column_name": "principal", "enable_entity_matching": true},
+          {"column_name": "principal_type", "enable_format_assistance": true},
+          {"column_name": "department", "enable_format_assistance": true}
+        ]
+      }
+    ]
+  },
+  "instructions": {
+    "example_question_sqls": [
+      {
+        "id": "55555555555555555555555555555555",
+        "question": ["What are the five endpoints downstream of mv_exec_revenue_daily?"],
+        "sql": ["SELECT target_asset_name, target_asset_type FROM solution_builder.demo_lineage_access_for_every_team_b89e91.gold_lineage_edges WHERE source_asset_name = 'mv_exec_revenue_daily' ORDER BY target_asset_type, target_asset_name"]
+      },
+      {
+        "id": "66666666666666666666666666666666",
+        "question": ["Who can access customer_pii?"],
+        "sql": ["SELECT principal, principal_type, privilege, member_count FROM solution_builder.demo_lineage_access_for_every_team_b89e91.gold_access_grants WHERE asset_name = 'customer_pii' ORDER BY principal"]
+      }
+    ],
+    "text_instructions": [
+      {
+        "id": "77777777777777777777777777777777",
+        "content": [
+          "Northpeak has a compact governance graph with 13 total assets.",
+          "Eight assets are tables, views, or materialized views.",
+          "The five terminal assets are two Tableau dashboards, one Databricks dashboard, one notebook, and one agent.",
+          "The identity directory contains three named users and five groups: data-engineers, data-analysts, platform-admins, finance, and contractors."
+        ]
+      }
+    ]
+  }
+}

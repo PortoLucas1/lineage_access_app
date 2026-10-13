@@ -1,0 +1,184 @@
+# Databricks Asset Bundle — Northpeak Retail Lineage & Access Console.
+#
+# Re-creates the whole demo on ANY workspace: a UC schema, the synthetic
+# governance graph, an AI/BI dashboard, a Genie space, and the Lakebase-backed
+# Databricks App. Simple demo — no SDP pipeline, no ML, no KA/MAS.
+#
+# ── 5-command deploy (the user runs these; authoring only here) ────────────
+#   1. ./app/scripts/lakebase_setup_db.sh --db-name dbgen_lineage_access
+#   2. databricks bundle deploy --var catalog=solution_builder --var schema=demo_lineage_access_for_every_team_b89e91 --var warehouse_id=<id>
+#   3. databricks bundle run lineage_access_setup --var catalog=… --var schema=… --var warehouse_id=<id>
+#   4. ./app/scripts/lakebase_grant_app_credential.sh --app-name dbgen-lineage-access --project-id dbdemos-asset-generator --db-name dbgen_lineage_access
+#   5. ./app/scripts/finalize_app.sh
+#
+# The Genie space id only exists AFTER the setup job runs, so the app env is
+# assembled by finalize_app.sh (step 5) from export_resources' exit JSON — not
+# baked at deploy time. See dab_instructions.md.
+
+bundle:
+  name: lineage_access
+
+variables:
+  catalog:
+    description: "Unity Catalog for demo resources"
+    default: "solution_builder"
+  schema:
+    description: "Schema within the catalog (created by this bundle)"
+    default: "demo_lineage_access_for_every_team_b89e91"
+  warehouse_id:
+    description: "SQL Warehouse ID — powers the dashboard, Genie, and app analytics"
+
+  # ── App + Lakebase ────────────────────────────────────────────────────
+  app_name:
+    description: "Workspace app name (must be unique per workspace)"
+    default: "dbgen-lineage-access"
+  lakebase_project_slug:
+    description: "Lakebase project SLUG (human name, not the UUID) — resolves resource paths."
+    default: "dbdemos-asset-generator"
+  lakebase_branch_id:
+    description: "Lakebase branch within the project"
+    default: "production"
+  lakebase_database_name:
+    description: "Postgres database name."
+    default: "dbgen_lineage_access"
+  lakebase_database_id:
+    description: "Lakebase database resource id — `db-` + database_name with underscores → hyphens."
+    default: "db-dbgen-lineage-access"
+
+# Build the app locally before sync — produces app/dist/server.js +
+# app/client/dist/ (both gitignored). sync.include whitelists them past
+# .gitignore so the Apps container has them.
+artifacts:
+  default:
+    build: ./app/scripts/build-app.sh
+
+sync:
+  include:
+    - "src/**"
+    - "app/dist/**"
+    - "app/client/dist/**"
+    - "app/drizzle/**"
+  exclude:
+    - "app/node_modules/**"
+    - "app/.venv/**"
+    - "app/.env"
+    - "app/.env.*"
+    - "app/.preview.pgid"
+    - "app/.DS_Store"
+    - "app/playwright-report/**"
+    - "app/test-results/**"
+    - "app/tests/**"
+
+targets:
+  dev:
+    default: true
+    mode: development
+  prod:
+    mode: production
+
+resources:
+  # ── Schema ────────────────────────────────────────────────────────────
+  schemas:
+    lineage_access_schema:
+      name: ${var.schema}
+      catalog_name: ${var.catalog}
+      comment: "Northpeak Retail governance graph — assets, lineage edges, access grants, plus column-level lineage for the revenue pipeline (gold_columns / gold_column_lineage)."
+
+  # ── Dashboard ───────────────────────────────────────────────────────────
+  # dataset_catalog / dataset_schema rebind the embedded bare-table queries
+  # per-target. Requires CLI v0.283.0+.
+  dashboards:
+    lineage_access_dashboard:
+      display_name: "[${bundle.target}] Northpeak Lineage & Access_b89e91"
+      file_path: ./src/dashboard/dashboard.json
+      warehouse_id: ${var.warehouse_id}
+      dataset_catalog: ${resources.schemas.lineage_access_schema.catalog_name}
+      dataset_schema: ${resources.schemas.lineage_access_schema.name}
+
+  # ── Databricks App ──────────────────────────────────────────────────────
+  apps:
+    lineage_access_app:
+      name: ${var.app_name}
+      description: "Northpeak Lineage & Access Console — lineage graph explorer (click to focus, expand for column-level lineage) + access panel + Genie-backed remediation agent."
+      source_code_path: ./app
+      lifecycle:
+        prevent_destroy: true
+      user_api_scopes:
+        - serving.serving-endpoints
+        - ai-gateway
+        - dashboards.genie
+        - sql
+        - sql.statement-execution
+        - postgres
+        - catalog.catalogs:read
+        - catalog.schemas:read
+        - catalog.tables:read
+      resources:
+        - name: sql-warehouse
+          sql_warehouse:
+            id: ${var.warehouse_id}
+            permission: CAN_USE
+        - name: postgres
+          postgres:
+            branch: projects/${var.lakebase_project_slug}/branches/${var.lakebase_branch_id}
+            database: projects/${var.lakebase_project_slug}/branches/${var.lakebase_branch_id}/databases/${var.lakebase_database_id}
+            permission: CAN_CONNECT_AND_CREATE
+
+  # ── Setup job — fills the shells after bundle deploy ────────────────────
+  jobs:
+    lineage_access_setup:
+      name: "[${bundle.target}] Northpeak Lineage & Access Setup"
+      description: "generate data → deploy genie + grant app SP → export resolved IDs"
+      tasks:
+        - task_key: generate_data
+          notebook_task:
+            notebook_path: ./src/data_generation/generate_data.py
+            base_parameters:
+              catalog: ${resources.schemas.lineage_access_schema.catalog_name}
+              schema:  ${resources.schemas.lineage_access_schema.name}
+          environment_key: sdk_default
+
+        - task_key: deploy_genie
+          depends_on: [{ task_key: generate_data }]
+          notebook_task:
+            notebook_path: ./src/deploy/deploy_genie.py
+            base_parameters:
+              catalog:      ${resources.schemas.lineage_access_schema.catalog_name}
+              schema:       ${resources.schemas.lineage_access_schema.name}
+              warehouse_id: ${var.warehouse_id}
+          environment_key: sdk_latest
+
+        - task_key: grant_app_uc
+          depends_on: [{ task_key: generate_data }]
+          notebook_task:
+            notebook_path: ./src/deploy/grant_app_uc.py
+            base_parameters:
+              catalog:  ${resources.schemas.lineage_access_schema.catalog_name}
+              schema:   ${resources.schemas.lineage_access_schema.name}
+              app_name: ${var.app_name}
+          environment_key: sdk_latest
+
+        - task_key: export_resources
+          depends_on: [{ task_key: deploy_genie }, { task_key: grant_app_uc }]
+          notebook_task:
+            notebook_path: ./src/deploy/export_resources.py
+            base_parameters:
+              app_name:       ${var.app_name}
+              catalog:        ${resources.schemas.lineage_access_schema.catalog_name}
+              schema:         ${resources.schemas.lineage_access_schema.name}
+              dashboard_id:   ${resources.dashboards.lineage_access_dashboard.id}
+              warehouse_id:   ${var.warehouse_id}
+              genie_space_id: "{{tasks.deploy_genie.values.genie_space_id}}"
+          environment_key: sdk_latest
+
+      environments:
+        - environment_key: sdk_default
+          spec:
+            client: "4"
+            dependencies:
+              - "numpy"
+        - environment_key: sdk_latest
+          spec:
+            client: "4"
+            dependencies:
+              - "databricks-sdk>=0.114.0"

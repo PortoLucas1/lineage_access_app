@@ -236,7 +236,7 @@ export function LineageGraph({
                   cx={10}
                   cy={10}
                   r={10}
-                  fill={isExpanded ? color : '#FFFFFF'}
+                  fill={isExpanded ? color : 'var(--card)'}
                   stroke={color}
                   strokeWidth={1.5}
                 />
@@ -360,7 +360,7 @@ function Node({
         width={node.width}
         height={node.height}
         rx={12}
-        fill="#FFFFFF"
+        fill="var(--card)"
         stroke={active ? accent : 'var(--border)'}
         strokeWidth={active ? 2.5 : 1}
       />
@@ -390,13 +390,13 @@ function Node({
       </g>
 
       {/* name + type + path */}
-      <text x={58} y={22} fill="#0F1730" fontSize={12.5} fontWeight={700} fontFamily="var(--font-sans)">
+      <text x={58} y={22} fill="var(--foreground)" fontSize={12.5} fontWeight={700} fontFamily="var(--font-sans)">
         {truncate(node.assetName, 20)}
       </text>
       <text x={58} y={37} fill={accent} fontSize={9.5} fontWeight={600} fontFamily="var(--font-sans)">
         {assetTypeLabel(node.assetType).toUpperCase()}
       </text>
-      <text x={58} y={51} fill="#64748B" fontSize={9} fontFamily="var(--font-sans)">
+      <text x={58} y={51} fill="var(--muted-foreground)" fontSize={9} fontFamily="var(--font-sans)">
         {truncate(path, 24)}
       </text>
 
@@ -421,7 +421,7 @@ function Node({
           width={20}
           height={20}
           rx={6}
-          fill={isExpanded ? accent : '#FFFFFF'}
+          fill={isExpanded ? accent : 'var(--card)'}
           stroke={accent}
           strokeWidth={1.25}
         />
@@ -460,7 +460,7 @@ function Node({
             <text
               x={22}
               y={NODE_HEADER_H + 23}
-              fill="#64748B"
+              fill="var(--muted-foreground)"
               fontSize={10}
               fontFamily="var(--font-sans)"
             >
@@ -485,7 +485,7 @@ function Node({
                   <text
                     x={26}
                     y={y + 15}
-                    fill="#0F1730"
+                    fill="var(--foreground)"
                     fontSize={10}
                     fontFamily="var(--font-mono)"
                   >
@@ -505,7 +505,7 @@ function Node({
                   <text
                     x={node.width - 9}
                     y={y + 15}
-                    fill="#64748B"
+                    fill="var(--muted-foreground)"
                     fontSize={8}
                     textAnchor="end"
                     fontFamily="var(--font-mono)"
@@ -519,7 +519,7 @@ function Node({
             <text
               x={22}
               y={NODE_HEADER_H + 23}
-              fill="#64748B"
+              fill="var(--muted-foreground)"
               fontSize={10}
               fontFamily="var(--font-sans)"
             >

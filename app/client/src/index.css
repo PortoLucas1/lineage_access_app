@@ -157,11 +157,51 @@
   --databricks-red: #EE3D2C;
 }
 
-/* Force light even if OS is dark — this is a business-facing demo */
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: light;
-  }
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Light stays the default even if the OS is dark; the header toggle opts in. */
+:root {
+  color-scheme: light;
+}
+
+:root.dark {
+  color-scheme: dark;
+
+  --background: #0E131B;
+  --foreground: #E4E9F0;
+  --card: #161D28;
+  --card-foreground: #E4E9F0;
+  --popover: #161D28;
+  --popover-foreground: #E4E9F0;
+  --muted: #1F2835;
+  --muted-foreground: #98A4B4;
+  --border: #2A3442;
+  --input: #2A3442;
+  --overlay: rgb(0 0 0 / 0.55);
+
+  --primary: #7FB2EC;
+  --primary-foreground: #0B1220;
+  --primary-light: #A9CBF3;
+  --on-primary-hover: rgb(0 0 0 / 0.12);
+  --secondary: var(--muted);
+  --secondary-foreground: var(--foreground);
+  --accent-foreground: #0B1220;
+
+  --success-subtle: #143327;
+  --success-subtle-foreground: #7DD3AE;
+  --warning-subtle: #3A2F0B;
+  --warning-subtle-foreground: #F2D57A;
+  --info-subtle: #17264A;
+  --info-subtle-foreground: #A9C1F2;
+  --severity-warning: #F0A24A;
+
+  --sidebar: #111821;
+  --sidebar-foreground: #E4E9F0;
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: #1F2835;
+  --sidebar-accent-foreground: #E4E9F0;
+  --sidebar-border: #232D3A;
 }
 
 html,

@@ -162,6 +162,8 @@
 /* Light stays the default even if the OS is dark; the header toggle opts in. */
 :root {
   color-scheme: light;
+  --asset-table: var(--brand-1);
+  --asset-view: var(--brand-2);
 }
 
 :root.dark {
@@ -202,6 +204,9 @@
   --sidebar-accent: #1F2835;
   --sidebar-accent-foreground: #E4E9F0;
   --sidebar-border: #232D3A;
+
+  --asset-table: #6FA3E3;
+  --asset-view: #8FB4DD;
 }
 
 html,

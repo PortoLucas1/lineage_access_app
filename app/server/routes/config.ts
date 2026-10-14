@@ -28,6 +28,10 @@ type Deps = {
       schema: string;
       tables: Record<string, string | undefined>;
     };
+    ucExplorer?: {
+      defaultCatalog: string;
+      defaultSchema: string;
+    };
     branding: { appName: string };
     assistantScript?: Array<{
       label: string;
@@ -140,6 +144,10 @@ export function registerConfigRoutes(app: Application, deps: Deps): void {
       agentMlflowExperimentId: getAgentExperimentId(),
       dashboardId: appConfig.dashboardId,
       branding: appConfig.branding,
+      ucExplorer: appConfig.ucExplorer ?? {
+        defaultCatalog: 'porto_catalog',
+        defaultSchema: 'dbdemos_pipeline_bike',
+      },
       assistantScript: appConfig.assistantScript ?? [],
     });
   });

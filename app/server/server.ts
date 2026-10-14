@@ -78,6 +78,7 @@ import { registerActivityRoutes } from './routes/activity.js';
 import { registerAdminRoutes } from './routes/admin.js';
 import { registerChartRoutes } from './routes/charts.js';
 import { registerDevLogRoutes } from './routes/dev-log.js';
+import { registerUnityCatalogRoutes } from './routes/unity-catalog.js';
 
 // ============================================================================
 // Config
@@ -390,7 +391,7 @@ const STARTUP_SAFE_PATHS = new Set([
   '/api/me',
   '/api/warehouse',
 ]);
-const STARTUP_SAFE_PREFIXES = ['/api/log/'];
+const STARTUP_SAFE_PREFIXES = ['/api/log/', '/api/uc/'];
 
 let migrationsDone = false;
 let migrationsFailure: Error | null = null;
@@ -474,6 +475,7 @@ await createApp({
     );
   }
   registerLineageRoutes(app, { db });
+  registerUnityCatalogRoutes(app);
   registerActivityRoutes(app, { db });
   registerAdminRoutes(app, { db, data: appConfig.data });
 

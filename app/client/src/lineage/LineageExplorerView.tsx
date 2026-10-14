@@ -14,7 +14,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { Search, Network } from 'lucide-react';
+import { Network } from 'lucide-react';
 import {
   fetchAssets,
   fetchLineage,
@@ -28,14 +28,18 @@ import type {
   LineageNeighborhood,
 } from '@/shared/types';
 import { dataMutated } from '@/lib/events';
+import { useSession } from '@/lib/api';
+import type { UcAsset } from '@/lib/unityCatalog';
 import { KpiCards } from './KpiCards';
 import { LineageGraph } from './LineageGraph';
 import { AccessPanel } from './AccessPanel';
+import { UcAssetBrowser } from './UcAssetBrowser';
 import { assetTypeLabel } from './assetVisuals';
 
 const DEFAULT_SEED_NAME = 'mv_exec_revenue_daily';
 
 export function LineageExplorerView() {
+  const { config } = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
   const assetParam = searchParams.get('asset');
 
@@ -47,7 +51,7 @@ export function LineageExplorerView() {
   const [kpis, setKpis] = useState<LineageKpis | null>(null);
   const [grants, setGrants] = useState<GrantRow[]>([]);
   const [grantsLoading, setGrantsLoading] = useState(false);
-  const [search, setSearch] = useState('');
+  const [selectedUcAsset, setSelectedUcAsset] = useState<UcAsset | null>(null);
 
   // Load the asset catalog once; pick the seed (URL param → default MV → top asset).
   useEffect(() => {
@@ -57,6 +61,21 @@ export function LineageExplorerView() {
         if (!alive) return;
         setAssets(rows);
         if (seedId) return;
+        const ucParts = assetParam?.split('.') ?? [];
+        if (ucParts.length === 3) {
+          setSelectedUcAsset({
+            catalogName: ucParts[0],
+            schemaName: ucParts[1],
+            name: ucParts[2],
+            fullName: ucParts.join('.'),
+            tableType: 'TABLE',
+            owner: null,
+            comment: null,
+          });
+          setSeedId(null);
+          setSelectedId(null);
+          return;
+        }
         let seed: AssetRow | undefined;
         if (assetParam) {
           seed = rows.find((a) => a.assetName === assetParam || a.id === assetParam);
@@ -129,23 +148,11 @@ export function LineageExplorerView() {
     );
   }, [selectedId, seedId, neighborhood, assets]);
 
-  const filteredAssets = useMemo(() => {
-    if (!search.trim()) return assets.slice(0, 12);
-    const q = search.toLowerCase();
-    return assets.filter((a) => a.assetName.toLowerCase().includes(q)).slice(0, 12);
-  }, [assets, search]);
-
-  const pickSeed = (a: AssetRow) => {
-    setSeedId(a.id);
-    setSelectedId(a.id);
-    setSearch('');
-    setSearchParams({ asset: a.assetName }, { replace: true });
-  };
-
   // Clicking a graph node RE-SCOPES the graph: the clicked object becomes the
   // new seed, so the canvas shows just that object's lineage (its upstream
   // sources + downstream consumers).
   const onNodeSelect = (id: string) => {
+    setSelectedUcAsset(null);
     if (id === seedId) {
       setSelectedId(id);
       return;
@@ -157,87 +164,91 @@ export function LineageExplorerView() {
     if (node) setSearchParams({ asset: node.assetName }, { replace: true });
   };
 
+  const onUcAssetSelect = (asset: UcAsset) => {
+    setSelectedUcAsset(asset);
+    setSeedId(null);
+    setSelectedId(null);
+    setNeighborhood(null);
+    setKpis(null);
+    setGrants([]);
+    setGrantsLoading(false);
+    setSearchParams({ asset: asset.fullName }, { replace: true });
+  };
+
+  const defaultCatalog = config?.ucExplorer.defaultCatalog ?? 'porto_catalog';
+  const defaultSchema = config?.ucExplorer.defaultSchema ?? 'dbdemos_pipeline_bike';
+
   return (
     <div className="h-full overflow-y-auto overflow-x-hidden">
-      <div className="w-full min-w-0 px-4 py-5 space-y-5">
-        {/* Header + asset picker */}
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+      <div className="grid w-full min-w-0 grid-cols-1 gap-4 px-4 py-5 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <UcAssetBrowser
+          defaultCatalog={defaultCatalog}
+          defaultSchema={defaultSchema}
+          selectedFullName={selectedUcAsset?.fullName ?? null}
+          onSelect={onUcAssetSelect}
+        />
+
+        <div className="min-w-0 space-y-5">
           <div>
             <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               <Network className="size-3.5" />
               Lineage Explorer
             </div>
             <h1 className="display text-2xl font-semibold text-foreground mt-1">
-              {selectedAsset ? selectedAsset.assetName : 'Select an asset'}
-              {selectedAsset && (
+              {selectedUcAsset?.name ?? selectedAsset?.assetName ?? 'Select an asset'}
+              {(selectedUcAsset ?? selectedAsset) && (
                 <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  {assetTypeLabel(selectedAsset.assetType)}
+                  {selectedUcAsset
+                    ? selectedUcAsset.tableType.toLowerCase().replaceAll('_', ' ')
+                    : assetTypeLabel(selectedAsset!.assetType)}
                 </span>
               )}
             </h1>
-          </div>
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search assets…"
-              className="w-full rounded-lg border border-border bg-card pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-foreground/30"
-            />
-            {search.trim() && (
-              <div className="absolute z-20 mt-1 w-full max-h-72 overflow-auto rounded-lg border border-border bg-card shadow-lg">
-                {filteredAssets.length === 0 && (
-                  <div className="px-3 py-2 text-sm text-muted-foreground">No matches</div>
-                )}
-                {filteredAssets.map((a) => (
-                  <button
-                    key={a.id}
-                    onClick={() => pickSeed(a)}
-                    className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
-                  >
-                    <span className="truncate">{a.assetName}</span>
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      {assetTypeLabel(a.assetType)} · {a.downstreamCount}↓
-                    </span>
-                  </button>
-                ))}
+            {selectedUcAsset && (
+              <div className="mt-1 font-mono text-xs text-muted-foreground">
+                {selectedUcAsset.fullName}
               </div>
             )}
           </div>
-        </div>
 
-        {/* KPI strip */}
-        <KpiCards kpis={kpis} />
+          <KpiCards kpis={kpis} />
 
-        {/* Graph + access panel */}
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(220px,260px)] gap-4 items-start min-w-0">
-          <div className="min-w-0 rounded-xl border border-border bg-card p-3">
-            <div className="flex items-center justify-between px-1 pb-2">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-                Lineage graph — upstream sources → {selectedAsset?.assetName ?? 'asset'} → downstream consumers
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(220px,260px)] gap-4 items-start min-w-0">
+            <div className="min-w-0 rounded-xl border border-border bg-card p-3">
+              <div className="flex items-center justify-between px-1 pb-2">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                  Lineage graph — upstream sources →{' '}
+                  {selectedUcAsset?.name ?? selectedAsset?.assetName ?? 'asset'} → downstream
+                  consumers
+                </div>
+                <div className="text-[10px] text-muted-foreground hidden sm:block">
+                  ⤢ shows object columns · an edge arrow shows column mappings
+                </div>
               </div>
-              <div className="text-[10px] text-muted-foreground hidden sm:block">
-                ⤢ shows object columns · an edge arrow shows column mappings
-              </div>
+              {seedId && neighborhood ? (
+                <LineageGraph
+                  key={seedId}
+                  seedId={seedId}
+                  selectedId={selectedId}
+                  assets={neighborhood.assets}
+                  edges={neighborhood.edges}
+                  onSelect={onNodeSelect}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-[420px] px-8 text-center text-sm text-muted-foreground">
+                  {selectedUcAsset
+                    ? 'Unity Catalog asset selected. Its real lineage is not loaded yet.'
+                    : 'Select an asset to load lineage.'}
+                </div>
+              )}
             </div>
-            {seedId && neighborhood ? (
-              <LineageGraph
-                key={seedId}
-                seedId={seedId}
-                selectedId={selectedId}
-                assets={neighborhood.assets}
-                edges={neighborhood.edges}
-                onSelect={onNodeSelect}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-[420px] text-sm text-muted-foreground">
-                Loading lineage…
-              </div>
-            )}
+            <AccessPanel
+              asset={selectedUcAsset ? null : selectedAsset}
+              grants={grants}
+              loading={grantsLoading}
+            />
           </div>
-          <AccessPanel asset={selectedAsset} grants={grants} loading={grantsLoading} />
         </div>
-
       </div>
     </div>
   );

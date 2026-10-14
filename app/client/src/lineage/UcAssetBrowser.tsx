@@ -1,11 +1,6 @@
 import { useEffect, useState } from 'react';
-import {
-  Database,
-  FolderClosed,
-  LoaderCircle,
-  Search,
-  Table2,
-} from 'lucide-react';
+import { LoaderCircle, Search } from 'lucide-react';
+import { CatalogIcon, SchemaIcon, UcAssetIcon } from './ucIcons';
 import {
   fetchUcAssets,
   fetchUcCatalogs,
@@ -203,7 +198,7 @@ export function UcAssetBrowser({
             <TreeButton
               key={item.name}
               label={item.name}
-              icon={<Database className="size-3.5" />}
+              icon={<CatalogIcon className="size-3.5" />}
               active={catalog === item.name}
               onClick={() => {
                 setCatalog(item.name);
@@ -219,7 +214,7 @@ export function UcAssetBrowser({
             <TreeButton
               key={item.fullName}
               label={item.name}
-              icon={<FolderClosed className="size-3.5" />}
+              icon={<SchemaIcon className="size-3.5" />}
               active={schema === item.name}
               onClick={() => setSchema(item.name)}
             />
@@ -331,7 +326,10 @@ function AssetButton({
         active ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
       }`}
     >
-      <Table2 className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+      <UcAssetIcon
+        tableType={asset.tableType}
+        className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
+      />
       <span className="min-w-0">
         <span className="block truncate text-xs font-medium">{asset.name}</span>
         <span className="block truncate text-[10px] text-muted-foreground">
@@ -344,5 +342,7 @@ function AssetButton({
 }
 
 function formatTableType(value: string): string {
+  if (value === 'MANAGED') return 'managed table';
+  if (value === 'EXTERNAL') return 'external table';
   return value.toLowerCase().replaceAll('_', ' ');
 }

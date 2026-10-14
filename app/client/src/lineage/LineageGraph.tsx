@@ -9,8 +9,8 @@
  * in the MV window (isNewFromMv) render in the accent orange (the "new
  * fan-out"); baseline edges are a muted grey. Clicking a card selects it.
  *
- * Layout = signed BFS distance from the seed (upstream negative, downstream
- * positive); nodes in a column stack vertically, centered.
+ * Layout = pipeline depth (sources on the left), independent of the selected
+ * node, so selecting a card never moves the others.
  */
 import { createElement, useCallback, useMemo, useState } from 'react';
 import { ChevronRight, LoaderCircle, Maximize2, Minimize2 } from 'lucide-react';
@@ -40,17 +40,14 @@ type Positioned = AssetRow & {
 };
 
 export function LineageGraph({
-  seedId,
   selectedId,
   assets,
   edges,
   onSelect,
 }: {
-  seedId: string;
   selectedId: string | null;
   assets: AssetRow[];
   edges: EdgeRow[];
-  /** Click a node card → re-scope the graph to that object's lineage. */
   onSelect: (id: string) => void;
 }) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -114,8 +111,8 @@ export function LineageGraph({
   };
 
   const { nodes, width, height, nodeById } = useMemo(
-    () => layout(seedId, assets, edges, expandedIds, columnData),
-    [seedId, assets, edges, expandedIds, columnData],
+    () => layout(assets, edges, expandedIds, columnData),
+    [assets, edges, expandedIds, columnData],
   );
 
   const expandedColumnEdges = useMemo(() => {
@@ -298,7 +295,6 @@ export function LineageGraph({
           <Node
             key={n.id}
             node={n}
-            isSeed={n.id === seedId}
             isSelected={n.id === selectedId}
             isExpanded={expandedIds.has(n.id)}
             columns={columnData[n.id]?.columns}
@@ -314,7 +310,6 @@ export function LineageGraph({
 
 function Node({
   node,
-  isSeed,
   isSelected,
   isExpanded,
   columns,
@@ -323,7 +318,6 @@ function Node({
   onExpandColumns,
 }: {
   node: Positioned;
-  isSeed: boolean;
   isSelected: boolean;
   isExpanded: boolean;
   columns?: ColumnRow[];
@@ -332,7 +326,7 @@ function Node({
   onExpandColumns: (id: string) => void;
 }) {
   const accent = assetTypeColor(node.assetType);
-  const active = isSelected || isSeed;
+  const active = isSelected;
   const path =
     node.catalog && node.catalog !== '-'
       ? `${node.catalog}.${node.schema}`
@@ -563,13 +557,12 @@ function truncate(s: string, n: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Layout: signed BFS distance from the seed defines the column. Upstream
-// (following edges backward from seed) are negative columns; downstream
-// (following edges forward) positive. Nodes not connected to the seed land
-// in column 0 alongside the seed (rare; keeps them visible).
+// Layout: column = longest path from a source within the displayed graph, so
+// it depends only on topology, never on which node is selected. Rows are
+// ordered by the average row of upstream neighbors (fewer crossings), with
+// the asset name as a deterministic tie-breaker.
 // ---------------------------------------------------------------------------
 function layout(
-  seedId: string,
   assets: AssetRow[],
   edges: EdgeRow[],
   expandedIds: Set<string>,
@@ -580,58 +573,41 @@ function layout(
   height: number;
   nodeById: Map<string, Positioned>;
 } {
+  const ids = new Set(assets.map((a) => a.id));
   const forward = new Map<string, string[]>();
   const backward = new Map<string, string[]>();
+  const indegree = new Map<string, number>();
+  for (const id of ids) indegree.set(id, 0);
   for (const e of edges) {
+    if (!ids.has(e.sourceAssetId) || !ids.has(e.targetAssetId)) continue;
+    if (e.sourceAssetId === e.targetAssetId) continue;
     if (!forward.has(e.sourceAssetId)) forward.set(e.sourceAssetId, []);
     forward.get(e.sourceAssetId)!.push(e.targetAssetId);
     if (!backward.has(e.targetAssetId)) backward.set(e.targetAssetId, []);
     backward.get(e.targetAssetId)!.push(e.sourceAssetId);
+    indegree.set(e.targetAssetId, (indegree.get(e.targetAssetId) ?? 0) + 1);
   }
 
   const col = new Map<string, number>();
-  col.set(seedId, 0);
-
-  // Downstream BFS (positive columns).
-  let frontier = [seedId];
-  const seenD = new Set([seedId]);
-  while (frontier.length) {
-    const next: string[] = [];
-    for (const id of frontier) {
-      for (const nxt of forward.get(id) ?? []) {
-        if (!seenD.has(nxt)) {
-          seenD.add(nxt);
-          const c = (col.get(id) ?? 0) + 1;
-          if (!col.has(nxt) || (col.get(nxt) ?? 0) < c) col.set(nxt, c);
-          next.push(nxt);
-        }
-      }
+  const queue = [...ids].filter((id) => indegree.get(id) === 0).sort();
+  for (const id of queue) col.set(id, 0);
+  while (queue.length) {
+    const id = queue.shift()!;
+    for (const next of forward.get(id) ?? []) {
+      col.set(next, Math.max(col.get(next) ?? 0, (col.get(id) ?? 0) + 1));
+      const remaining = (indegree.get(next) ?? 0) - 1;
+      indegree.set(next, remaining);
+      if (remaining === 0) queue.push(next);
     }
-    frontier = next;
+  }
+  // Nodes inside a cycle never reach indegree 0; park them after their
+  // placed upstream neighbors.
+  for (const id of [...ids].sort()) {
+    if (col.has(id)) continue;
+    const upstream = (backward.get(id) ?? []).map((prev) => col.get(prev) ?? -1);
+    col.set(id, Math.max(-1, ...upstream) + 1);
   }
 
-  // Upstream BFS (negative columns).
-  frontier = [seedId];
-  const seenU = new Set([seedId]);
-  while (frontier.length) {
-    const next: string[] = [];
-    for (const id of frontier) {
-      for (const prev of backward.get(id) ?? []) {
-        if (!seenU.has(prev)) {
-          seenU.add(prev);
-          const c = (col.get(id) ?? 0) - 1;
-          if (!col.has(prev) || (col.get(prev) ?? 0) > c) col.set(prev, c);
-          next.push(prev);
-        }
-      }
-    }
-    frontier = next;
-  }
-
-  // Any asset not placed → column 0.
-  for (const a of assets) if (!col.has(a.id)) col.set(a.id, 0);
-
-  // Group by column, sort within a column (seed centered).
   const byCol = new Map<number, AssetRow[]>();
   for (const a of assets) {
     const c = col.get(a.id) ?? 0;
@@ -639,6 +615,24 @@ function layout(
     byCol.get(c)!.push(a);
   }
   const cols = [...byCol.keys()].sort((a, b) => a - b);
+  const rowIndex = new Map<string, number>();
+  for (const c of cols) {
+    const list = byCol.get(c)!;
+    const weight = (asset: AssetRow) => {
+      const rows = (backward.get(asset.id) ?? [])
+        .map((prev) => rowIndex.get(prev))
+        .filter((row): row is number => row !== undefined);
+      return rows.length ? rows.reduce((sum, row) => sum + row, 0) / rows.length : Infinity;
+    };
+    const weights = new Map(list.map((asset) => [asset.id, weight(asset)]));
+    list.sort((a, b) => {
+      const wa = weights.get(a.id)!;
+      const wb = weights.get(b.id)!;
+      if (wa !== wb) return wa < wb ? -1 : 1;
+      return a.assetName.localeCompare(b.assetName);
+    });
+    list.forEach((asset, index) => rowIndex.set(asset.id, index));
+  }
   const nodes: Positioned[] = [];
   const nodeById = new Map<string, Positioned>();
   const dimensions = (asset: AssetRow) => {
@@ -664,7 +658,6 @@ function layout(
 
   cols.forEach((c, colIdx) => {
     const list = byCol.get(c)!;
-    list.sort((a, b) => a.assetName.localeCompare(b.assetName));
     const x = nextX;
     let nextY = PAD + (graphHeight - columnHeights[colIdx]) / 2;
     list.forEach((a, i) => {

@@ -1,26 +1,9 @@
-import type { Application, Request, Response } from 'express';
-import { authHeaders } from '../lib/auth.js';
-
-type StatementResponse = {
-  statement_id: string;
-  status: {
-    state: 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED' | 'CLOSED';
-    error?: { message?: string };
-  };
-  result?: {
-    data_array?: unknown[][];
-  };
-};
+import type { Application, Response } from 'express';
+import { executeStatement, sqlLiteral } from '../lib/statement-execution.js';
 
 const DEFAULT_CATALOG = 'porto_catalog';
 const DEFAULT_SCHEMA = 'dbdemos_pipeline_bike';
 const IDENTIFIER = /^[A-Za-z0-9_-]+$/;
-
-function workspaceHost(): string {
-  const raw = (process.env.DATABRICKS_HOST ?? '').replace(/\/+$/, '');
-  if (!raw) throw new Error('DATABRICKS_HOST is not configured');
-  return raw.startsWith('http') ? raw : `https://${raw}`;
-}
 
 function strParam(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -34,54 +17,6 @@ function requireIdentifier(value: unknown, label: string): string {
   return parsed;
 }
 
-function sqlLiteral(value: string): string {
-  return value.replace(/'/g, "''");
-}
-
-async function executeSql(req: Request, statement: string): Promise<unknown[][]> {
-  const warehouseId = process.env.DATABRICKS_WAREHOUSE_ID;
-  if (!warehouseId) throw new Error('DATABRICKS_WAREHOUSE_ID is not configured');
-
-  const headers = await authHeaders(req);
-  headers.set('Content-Type', 'application/json');
-  const host = workspaceHost();
-  const response = await fetch(`${host}/api/2.0/sql/statements`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      warehouse_id: warehouseId,
-      statement,
-      wait_timeout: '30s',
-      on_wait_timeout: 'CONTINUE',
-      disposition: 'INLINE',
-      format: 'JSON_ARRAY',
-    }),
-  });
-  if (!response.ok) {
-    throw new Error(`Statement Execution API returned ${response.status}: ${await response.text()}`);
-  }
-
-  let body = (await response.json()) as StatementResponse;
-  const deadline = Date.now() + 60_000;
-  while (body.status.state === 'PENDING' || body.status.state === 'RUNNING') {
-    if (Date.now() >= deadline) throw new Error('Unity Catalog query timed out');
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    const poll = await fetch(
-      `${host}/api/2.0/sql/statements/${encodeURIComponent(body.statement_id)}`,
-      { headers },
-    );
-    if (!poll.ok) {
-      throw new Error(`Statement status returned ${poll.status}: ${await poll.text()}`);
-    }
-    body = (await poll.json()) as StatementResponse;
-  }
-
-  if (body.status.state !== 'SUCCEEDED') {
-    throw new Error(body.status.error?.message ?? `Unity Catalog query ${body.status.state}`);
-  }
-  return body.result?.data_array ?? [];
-}
-
 function routeError(res: Response, error: unknown): void {
   const message = error instanceof Error ? error.message : String(error);
   res.status(502).json({ error: message });
@@ -92,7 +27,7 @@ export function registerUnityCatalogRoutes(app: Application): void {
     try {
       const query = sqlLiteral(strParam(req.query.q).toLowerCase());
       const where = query ? `WHERE LOWER(catalog_name) LIKE '%${query}%'` : '';
-      const rows = await executeSql(
+      const rows = await executeStatement(
         req,
         `SELECT catalog_name, catalog_owner, comment
            FROM system.information_schema.catalogs
@@ -116,7 +51,7 @@ export function registerUnityCatalogRoutes(app: Application): void {
   app.get('/api/uc/schemas', async (req, res) => {
     try {
       const catalog = requireIdentifier(req.query.catalog, 'catalog');
-      const rows = await executeSql(
+      const rows = await executeStatement(
         req,
         `SELECT catalog_name, schema_name, schema_owner, comment
            FROM system.information_schema.schemata
@@ -144,7 +79,7 @@ export function registerUnityCatalogRoutes(app: Application): void {
     try {
       const catalog = requireIdentifier(req.query.catalog, 'catalog');
       const schema = requireIdentifier(req.query.schema, 'schema');
-      const rows = await executeSql(
+      const rows = await executeStatement(
         req,
         `SELECT table_catalog, table_schema, table_name, table_type, table_owner, comment
            FROM system.information_schema.tables
@@ -173,7 +108,7 @@ export function registerUnityCatalogRoutes(app: Application): void {
       const schema = req.query.schema
         ? requireIdentifier(req.query.schema, 'schema')
         : DEFAULT_SCHEMA;
-      const scopedRows = await executeSql(
+      const scopedRows = await executeStatement(
         req,
         `SELECT table_catalog, table_schema, table_name, table_type, table_owner, comment
            FROM system.information_schema.tables
@@ -189,7 +124,7 @@ export function registerUnityCatalogRoutes(app: Application): void {
         return;
       }
 
-      const globalRows = await executeSql(
+      const globalRows = await executeStatement(
         req,
         `SELECT table_catalog, table_schema, table_name, table_type, table_owner, comment
            FROM system.information_schema.tables

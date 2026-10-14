@@ -9,3 +9,8 @@ __pycache__/
 !.env.example
 !.env.template
 .databrickscfg
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log

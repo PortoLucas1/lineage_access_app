@@ -22,10 +22,8 @@ export type AssetRow = {
   createdDate: string | null;
   lastRefreshed: string | null;
   downstreamCount: number;
-  blastRadiusUsd: number;
   principalsWithAccess: number;
   hasOverBroadGrant: boolean;
-  annualValueUsd: number | null;
 };
 
 export type EdgeRow = {
@@ -82,7 +80,6 @@ export type LineageNeighborhood = {
 export type LineageKpis = {
   governedAssets: number;
   newEdges30d: number;
-  blastRadiusUsd: number;
   piiPrincipals: number;
 };
 

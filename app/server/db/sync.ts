@@ -72,16 +72,14 @@ export async function syncFromDelta(
       created_date: string | null;
       last_refreshed: string | null;
       downstream_count: number | null;
-      blast_radius_usd: number | null;
       principals_with_access: number | null;
       has_over_broad_grant: boolean | null;
-      annual_value_usd: number | null;
     }>(
       warehouseId,
       `SELECT asset_id, asset_name, asset_type, platform, catalog, schema,
               domain, criticality, has_pii, owner_email, created_date,
-              last_refreshed, downstream_count, blast_radius_usd,
-              principals_with_access, has_over_broad_grant, annual_value_usd
+              last_refreshed, downstream_count, principals_with_access,
+              has_over_broad_grant
        FROM ${fq('assets')}`,
     ),
     execSql<{
@@ -134,8 +132,6 @@ export async function syncFromDelta(
   console.log(`[sync]   queries done (${((Date.now() - t0) / 1000).toFixed(1)}s) — inserting…`);
 
   const toBool = (v: unknown): boolean => v === true || v === 'true' || v === 't';
-  const toNum = (v: unknown): string | null =>
-    v === null || v === undefined || v === '' ? null : String(Number(v));
   const toInt = (v: unknown): number =>
     v === null || v === undefined || v === '' ? 0 : Math.round(Number(v));
 
@@ -156,10 +152,8 @@ export async function syncFromDelta(
           createdDate: r.created_date,
           lastRefreshed: r.last_refreshed,
           downstreamCount: toInt(r.downstream_count),
-          blastRadiusUsd: toNum(r.blast_radius_usd),
           principalsWithAccess: toInt(r.principals_with_access),
           hasOverBroadGrant: toBool(r.has_over_broad_grant),
-          annualValueUsd: toNum(r.annual_value_usd),
         })),
       ).onConflictDoNothing(),
     );

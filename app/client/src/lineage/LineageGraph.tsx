@@ -400,17 +400,12 @@ function Node({
         {truncate(path, 24)}
       </text>
 
-      {/* chips (top-right): PII · $ */}
+      {/* PII classification chip */}
       <g transform={`translate(${node.width - 10}, 9)`}>
         {node.hasPii && (
           <Chip x={-34} label="PII" bg="#FDE2E2" fg="#B91C1C" />
         )}
       </g>
-      {node.annualValueUsd ? (
-        <g transform={`translate(${node.width - 34}, ${NODE_HEADER_H - 22})`}>
-          <Chip x={-52} label={compactUsd(node.annualValueUsd)} bg="#FFE8CC" fg="#9A4B00" wide />
-        </g>
-      ) : null}
 
       {/* Every generated object carries columns, including Tableau and AI/BI. */}
       <g
@@ -546,15 +541,13 @@ function Chip({
   label,
   bg,
   fg,
-  wide,
 }: {
   x: number;
   label: string;
   bg: string;
   fg: string;
-  wide?: boolean;
 }) {
-  const w = wide ? 46 : 26;
+  const w = 26;
   return (
     <g transform={`translate(${x}, 0)`}>
       <rect width={w} height={14} rx={7} fill={bg} />
@@ -562,16 +555,6 @@ function Chip({
         {label}
       </text>
     </g>
-  );
-}
-
-function compactUsd(n: number): string {
-  return (
-    '$' +
-    new Intl.NumberFormat(undefined, {
-      notation: 'compact',
-      maximumFractionDigits: 0,
-    }).format(n)
   );
 }
 

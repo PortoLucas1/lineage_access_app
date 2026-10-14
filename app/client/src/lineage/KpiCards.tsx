@@ -3,13 +3,13 @@
  * (via /api/lineage/:id/kpis). usePulseOnChange flashes cards whose value
  * moved when dataMutated fires.
  */
-import { Boxes, GitBranch, DollarSign, ShieldAlert } from 'lucide-react';
+import { Boxes, GitBranch, ShieldAlert } from 'lucide-react';
 import { usePulseOnChange } from '@/lib/usePulseOnChange';
 import type { LineageKpis } from '@/shared/types';
 
 export function KpiCards({ kpis }: { kpis: LineageKpis | null }) {
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
       <Card
         label="Governed Assets"
         value={kpis ? kpis.governedAssets.toLocaleString() : '—'}
@@ -25,13 +25,6 @@ export function KpiCards({ kpis }: { kpis: LineageKpis | null }) {
         tone="info"
       />
       <Card
-        label="Blast Radius at Risk"
-        value={kpis ? compactUsd(kpis.blastRadiusUsd) : '—'}
-        raw={kpis?.blastRadiusUsd ?? 0}
-        icon={<DollarSign className="size-4" />}
-        tone="accent"
-      />
-      <Card
         label="Principals w/ PII Access"
         value={kpis ? kpis.piiPrincipals.toLocaleString() : '—'}
         raw={kpis?.piiPrincipals ?? 0}
@@ -39,17 +32,6 @@ export function KpiCards({ kpis }: { kpis: LineageKpis | null }) {
         tone="danger"
       />
     </div>
-  );
-}
-
-function compactUsd(n: number): string {
-  if (!n) return '$0';
-  return (
-    '$' +
-    new Intl.NumberFormat(undefined, {
-      notation: 'compact',
-      maximumFractionDigits: 1,
-    }).format(n)
   );
 }
 
@@ -64,17 +46,15 @@ function Card({
   value: string;
   raw: number;
   icon: React.ReactNode;
-  tone: 'neutral' | 'info' | 'accent' | 'danger';
+  tone: 'neutral' | 'info' | 'danger';
 }) {
   const pulse = usePulseOnChange(raw);
   const toneClass =
     tone === 'danger'
       ? 'text-destructive'
-      : tone === 'accent'
-        ? 'text-[var(--accent)]'
-        : tone === 'info'
-          ? 'text-[var(--info-subtle-foreground)]'
-          : 'text-foreground';
+      : tone === 'info'
+        ? 'text-[var(--info-subtle-foreground)]'
+        : 'text-foreground';
   return (
     <div
       className={`rounded-xl border border-border bg-card p-3 sm:p-5 transition-shadow ${

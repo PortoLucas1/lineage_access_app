@@ -23,10 +23,8 @@ export type AssetRow = {
   createdDate: string | null;
   lastRefreshed: string | null;
   downstreamCount: number;
-  blastRadiusUsd: number;
   principalsWithAccess: number;
   hasOverBroadGrant: boolean;
-  annualValueUsd: number | null;
 };
 
 export type EdgeRow = {
@@ -81,13 +79,8 @@ function toAsset(r: Record<string, unknown>): AssetRow {
     createdDate: (r.created_date as string) ?? null,
     lastRefreshed: (r.last_refreshed as string) ?? null,
     downstreamCount: Number(r.downstream_count ?? 0),
-    blastRadiusUsd: Number(r.blast_radius_usd ?? 0),
     principalsWithAccess: Number(r.principals_with_access ?? 0),
     hasOverBroadGrant: r.has_over_broad_grant === true,
-    annualValueUsd:
-      r.annual_value_usd === null || r.annual_value_usd === undefined
-        ? null
-        : Number(r.annual_value_usd),
   };
 }
 
@@ -332,7 +325,6 @@ export async function getGrantsForAsset(db: AppDb, assetId: string): Promise<Gra
 // KPI summary for the selected asset's sub-graph.
 //   - governedAssets: total assets in the estate
 //   - newEdges30d: lineage edges created in the last 30 days
-//   - blastRadiusUsd: the seed asset's blast_radius_usd
 //   - piiPrincipals: distinct effective principals with ACTIVE (not-yet-flagged)
 //     grants on PII assets reachable in the seed's sub-graph
 // ============================================================================
@@ -340,7 +332,6 @@ export async function getGrantsForAsset(db: AppDb, assetId: string): Promise<Gra
 export type LineageKpis = {
   governedAssets: number;
   newEdges30d: number;
-  blastRadiusUsd: number;
   piiPrincipals: number;
 };
 
@@ -354,9 +345,8 @@ export async function getKpis(db: AppDb, seedId: string): Promise<LineageKpis> {
   `);
   const newEdges30d = Number((edgesRes.rows[0] as { n: number })?.n ?? 0);
 
-  // Sub-graph asset ids around the seed (2 hops), then blast radius + PII exposure.
-  const { assets, seed } = await getLineageNeighborhood(db, seedId, 2);
-  const blastRadiusUsd = seed?.blastRadiusUsd ?? 0;
+  // Sub-graph asset ids around the seed (2 hops), then PII exposure.
+  const { assets } = await getLineageNeighborhood(db, seedId, 2);
 
   const subGraphPiiAssets = assets.filter((a) => a.hasPii).map((a) => a.id);
   let piiPrincipals = 0;
@@ -370,7 +360,7 @@ export async function getKpis(db: AppDb, seedId: string): Promise<LineageKpis> {
     piiPrincipals = Number((res.rows[0] as { n: number })?.n ?? 0);
   }
 
-  return { governedAssets, newEdges30d, blastRadiusUsd, piiPrincipals };
+  return { governedAssets, newEdges30d, piiPrincipals };
 }
 
 // ============================================================================
@@ -385,9 +375,7 @@ export type PipelineExposure = {
     asset_name: string;
     asset_type: string;
     platform: string | null;
-    annual_value_usd: number | null;
   }>;
-  totalDownstreamValueUsd: number;
   grants: Array<{
     grant_id: string;
     asset_id: string;
@@ -455,12 +443,7 @@ export async function getPipelineExposure(
       asset_name: a.assetName,
       asset_type: a.assetType,
       platform: a.platform,
-      annual_value_usd: a.annualValueUsd,
     }));
-  const totalDownstreamValueUsd = downstreamConsumers.reduce(
-    (s, c) => s + (c.annual_value_usd ?? 0),
-    0,
-  );
 
   const pipelineAssetIds = [seedId, ...upstreamIds];
   let grants: PipelineExposure['grants'] = [];
@@ -489,7 +472,6 @@ export async function getPipelineExposure(
   return {
     seed: seedId,
     downstreamConsumers,
-    totalDownstreamValueUsd,
     grants,
   };
 }

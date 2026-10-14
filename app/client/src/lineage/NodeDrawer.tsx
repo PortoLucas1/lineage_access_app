@@ -1,7 +1,7 @@
 /**
  * Node detail drawer — opens when a graph node is clicked. Three tabs:
  *   Overview — asset metadata (type, catalog.schema, domain, criticality,
- *              PII, owner, downstream_count, blast_radius_usd, dates).
+ *              PII, owner, downstream count, access, and dates).
  *   Access   — the grants on this asset (same shape as the right rail).
  *   Activity — the append-only audit timeline from the grants' auditTrail.
  * Refetches on dataMutated so the agent's writes land live.
@@ -130,14 +130,6 @@ export function NodeDrawer({
                 <Field label="Contains PII" value={asset.hasPii ? 'Yes' : 'No'} />
                 <Field label="Owner" value={asset.ownerEmail ?? '—'} />
                 <Field label="Downstream assets" value={asset.downstreamCount.toLocaleString()} />
-                <Field
-                  label="Blast radius"
-                  value={asset.blastRadiusUsd ? '$' + asset.blastRadiusUsd.toLocaleString() : '$0'}
-                />
-                <Field
-                  label="Annual value"
-                  value={asset.annualValueUsd ? '$' + asset.annualValueUsd.toLocaleString() : '—'}
-                />
                 <Field
                   label="Principals w/ access"
                   value={asset.principalsWithAccess.toLocaleString()}

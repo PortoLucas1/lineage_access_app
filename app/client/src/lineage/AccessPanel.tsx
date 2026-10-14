@@ -14,13 +14,20 @@ export function AccessPanel({
   grants: GrantRow[];
   loading: boolean;
 }) {
-  const totalPrincipals = grants.reduce((s, g) => s + (g.effectivePrincipals || 0), 0);
+  const isComparison = grants.some((grant) => grant.comparisonStatus);
+  const totalPrincipals = isComparison
+    ? new Set(
+        grants
+          .filter((grant) => grant.comparisonStatus !== 'declared_only')
+          .map((grant) => grant.principal),
+      ).size
+    : grants.reduce((sum, grant) => sum + (grant.effectivePrincipals || 0), 0);
 
   return (
     <div className="rounded-xl border border-border bg-card flex flex-col min-h-0 min-w-0">
       <div className="px-4 py-3 border-b border-border">
         <div className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-          Access panel
+          {isComparison ? 'Terraform vs effective' : 'Access panel'}
         </div>
         <div className="text-sm font-semibold text-foreground mt-0.5 truncate">
           {asset ? asset.assetName : 'Select an asset'}
@@ -28,7 +35,7 @@ export function AccessPanel({
         {asset && (
           <div className="text-xs text-muted-foreground mt-1">
             <span className="font-medium text-foreground">{totalPrincipals.toLocaleString()}</span>{' '}
-            principals can access this asset
+            effective principals can access this asset
           </div>
         )}
       </div>
@@ -66,16 +73,48 @@ function GrantRowItem({ grant }: { grant: GrantRow }) {
             <span className="text-sm font-medium text-foreground truncate">
               {grant.displayName ?? grant.principal}
             </span>
+            {grant.comparisonStatus && <ComparisonBadge status={grant.comparisonStatus} />}
           </div>
           <div className="text-xs text-muted-foreground mt-0.5">
             <span className="font-mono">{grant.privilege}</span>
             {' · '}
             {grant.principalType}
-            {grant.principalType === 'group' && ` · ${grant.memberCount} members`}
+            {grant.principalType === 'group'
+              && !grant.comparisonStatus
+              && ` · ${grant.memberCount} members`}
             {grant.department ? ` · ${grant.department}` : ''}
           </div>
+          {grant.comparisonStatus && (
+            <div className="text-[11px] text-muted-foreground mt-1 break-words">
+              {grant.comparisonStatus === 'declared_only'
+                ? `Declared at ${grant.declaredScope}`
+                : `Inherited from ${grant.inheritedFromType} ${grant.inheritedFromName}`}
+            </div>
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+function ComparisonBadge({
+  status,
+}: {
+  status: NonNullable<GrantRow['comparisonStatus']>;
+}) {
+  const styles = {
+    in_sync: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+    declared_only: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
+    effective_only: 'bg-rose-500/10 text-rose-700 dark:text-rose-300',
+  };
+  const labels = {
+    in_sync: 'In sync',
+    declared_only: 'Declared only',
+    effective_only: 'Effective only',
+  };
+  return (
+    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${styles[status]}`}>
+      {labels[status]}
+    </span>
   );
 }

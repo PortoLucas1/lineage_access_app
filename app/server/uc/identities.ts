@@ -122,10 +122,12 @@ function scimCollection(kind: IdentityKind): string {
 function scimFilter(kind: IdentityKind, search: string): string {
   const q = search.trim().replace(/"/g, '');
   if (q.length < 2) return '';
-  const quoted = `"${q}"`;
-  if (kind === 'group') return `displayName co ${quoted}`;
-  if (kind === 'user') return `userName co ${quoted} or displayName co ${quoted}`;
-  return `displayName co ${quoted} or applicationId co ${quoted}`;
+  const tokens = q.split(/\s+/).filter((token) => token.length >= 1);
+  const andContains = (attr: string) =>
+    tokens.map((token) => `${attr} co "${token}"`).join(' and ');
+  if (kind === 'group') return andContains('displayName');
+  if (kind === 'user') return `(${andContains('userName')}) or (${andContains('displayName')})`;
+  return `(${andContains('displayName')}) or (${andContains('applicationId')})`;
 }
 
 function toIdentity(kind: IdentityKind, row: Record<string, unknown>): DirectoryIdentity {

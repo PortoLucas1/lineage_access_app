@@ -27,6 +27,7 @@ user_authorization:
     - catalog.catalogs:read
     - catalog.schemas:read
     - catalog.tables:read
+    - identity:read
 
 env:
   - name: NODE_ENV

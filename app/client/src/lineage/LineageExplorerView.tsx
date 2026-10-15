@@ -72,8 +72,8 @@ export function LineageExplorerView() {
             owner: null,
             comment: null,
           });
-          setSeedId(null);
-          setSelectedId(null);
+          setSeedId(ucParts.join('.'));
+          setSelectedId(ucParts.join('.'));
           return;
         }
         let seed: AssetRow | undefined;
@@ -152,13 +152,29 @@ export function LineageExplorerView() {
   // new seed, so the canvas shows just that object's lineage (its upstream
   // sources + downstream consumers).
   const onNodeSelect = (id: string) => {
-    setSelectedUcAsset(null);
     if (id === seedId) {
       setSelectedId(id);
       return;
     }
     const node =
       neighborhood?.assets.find((a) => a.id === id) ?? assets.find((a) => a.id === id);
+    const ucParts = id.split('.');
+    if (ucParts.length === 3) {
+      setSelectedUcAsset({
+        catalogName: ucParts[0],
+        schemaName: ucParts[1],
+        name: ucParts[2],
+        fullName: id,
+        tableType: node?.assetType ?? 'TABLE',
+        owner: node?.ownerEmail ?? null,
+        comment: null,
+      });
+      setSeedId(id);
+      setSelectedId(id);
+      setSearchParams({ asset: id }, { replace: true });
+      return;
+    }
+    setSelectedUcAsset(null);
     setSeedId(id);
     setSelectedId(id);
     if (node) setSearchParams({ asset: node.assetName }, { replace: true });
@@ -166,8 +182,8 @@ export function LineageExplorerView() {
 
   const onUcAssetSelect = (asset: UcAsset) => {
     setSelectedUcAsset(asset);
-    setSeedId(null);
-    setSelectedId(null);
+    setSeedId(asset.fullName);
+    setSelectedId(asset.fullName);
     setNeighborhood(null);
     setKpis(null);
     setGrants([]);
@@ -236,14 +252,12 @@ export function LineageExplorerView() {
                 />
               ) : (
                 <div className="flex items-center justify-center h-[420px] px-8 text-center text-sm text-muted-foreground">
-                  {selectedUcAsset
-                    ? 'Unity Catalog asset selected. Its real lineage is not loaded yet.'
-                    : 'Select an asset to load lineage.'}
+                  {seedId ? 'Loading lineage…' : 'Select an asset to load lineage.'}
                 </div>
               )}
             </div>
             <AccessPanel
-              asset={selectedUcAsset ? null : selectedAsset}
+              asset={selectedAsset}
               grants={grants}
               loading={grantsLoading}
             />

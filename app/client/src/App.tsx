@@ -2,8 +2,9 @@
  * Top-level router + layout.
  *
  * Each route maps to one "section" of the demo — see the folder names:
- *   lineage/    — Lineage Explorer (graph + access panel + KPI cards)
- *   platform/   — Databricks Data + AI pitch page
+ *   lineage/      — Lineage Explorer (graph + access panel + KPI cards)
+ *   permissions/  — identity → Unity Catalog effective access
+ *   platform/     — Databricks Data + AI pitch page
  *
  * Chrome (sidebar + header) lives in shell/.
  */
@@ -13,6 +14,7 @@ import { SidebarInset, SidebarProvider } from '@databricks/appkit-ui/react';
 import { AppSidebar } from '@/shell/AppSidebar';
 import { AppHeader } from '@/shell/AppHeader';
 import { LineageExplorerView } from '@/lineage/LineageExplorerView';
+import { PermissionsMappingView } from '@/permissions/PermissionsMappingView';
 import { SessionProvider } from '@/lib/api';
 import { RouteError } from './RouteError';
 
@@ -55,7 +57,8 @@ const router = createBrowserRouter(
         { path: '/lineage', element: <LineageExplorerView /> },
         { path: '/analytics', element: <Navigate to="/" replace /> },
         { path: '/c/:id', element: <Navigate to="/" replace /> },
-        { path: '/dashboard', element: <Navigate to="/" replace /> },
+        { path: '/dashboard', element: <Navigate to="/permissions" replace /> },
+        { path: '/permissions', element: <PermissionsMappingView /> },
       ],
     },
   ],

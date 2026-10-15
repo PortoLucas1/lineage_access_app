@@ -111,6 +111,54 @@ export type ColumnLineage = {
   neighborColumns: ColumnRow[];
 };
 
+export type IdentityKind = 'group' | 'user' | 'service_principal';
+
+export type DirectoryIdentity = {
+  id: string;
+  kind: IdentityKind;
+  displayName: string;
+  handle: string;
+};
+
+export type DirectoryPage = {
+  identities: DirectoryIdentity[];
+  total: number;
+  startIndex: number;
+  count: number;
+};
+
+export type IdentityCapabilities = {
+  canReadGroupMembers: boolean;
+};
+
+export type AccessLevel = 'full_control' | 'write' | 'read' | 'discover';
+export type AssetCategory = 'catalog' | 'schema' | 'table' | 'volume' | 'function';
+
+export type PrivilegeGrant = {
+  privilege: string;
+  inheritedFromType: string | null;
+  inheritedFromName: string | null;
+  conveyedBy: string;
+};
+
+export type MappedAsset = {
+  category: AssetCategory;
+  securableType: string;
+  fullName: string;
+  name: string;
+  tableType: string | null;
+  privileges: PrivilegeGrant[];
+  accessLevel: AccessLevel;
+};
+
+export type PermissionMap = {
+  catalog: string | null;
+  principal: string;
+  truncated: boolean;
+  errors: string[];
+  categories: Record<AssetCategory, MappedAsset[]>;
+};
+
 export type ActivityEvent = {
   grant_id: string;
   asset_name: string | null;

@@ -62,6 +62,10 @@ export type GrantRow = {
   status: GrantStatus;
   reviewedBy: string | null;
   auditTrail: AuditEntry[];
+  comparisonStatus?: 'in_sync' | 'declared_only' | 'effective_only';
+  inheritedFromName?: string | null;
+  inheritedFromType?: string | null;
+  declaredScope?: string | null;
 };
 
 function toAsset(r: Record<string, unknown>): AssetRow {

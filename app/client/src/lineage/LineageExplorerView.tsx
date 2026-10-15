@@ -5,8 +5,9 @@
  *   Asset picker (search)      — defaults to the top asset by downstream_count
  *                                (mv_exec_revenue_daily), so the demo opens on the story
  *   Lineage graph (LineageGraph) — upstream sources → selected asset → downstream consumers.
- *     Clicking a node RE-SCOPES the graph to that object's lineage (it becomes
- *     the seed). Every node has an expand (⤢) icon that reveals its columns
+ *     Clicking a node selects it without re-laying out the graph; picking an
+ *     asset outside the current graph loads its lineage. Every node has an
+ *     expand (⤢) icon that reveals its columns
  *     inline; edge arrow controls reveal mappings between endpoint columns.
  *   Access panel (AccessPanel) — every principal that can access the selected node.
  *
@@ -68,12 +69,12 @@ export function LineageExplorerView() {
             schemaName: ucParts[1],
             name: ucParts[2],
             fullName: ucParts.join('.'),
-            tableType: 'TABLE',
+            tableType: '',
             owner: null,
             comment: null,
           });
-          setSeedId(null);
-          setSelectedId(null);
+          setSeedId(ucParts.join('.'));
+          setSelectedId(ucParts.join('.'));
           return;
         }
         let seed: AssetRow | undefined;
@@ -148,26 +149,43 @@ export function LineageExplorerView() {
     );
   }, [selectedId, seedId, neighborhood, assets]);
 
-  // Clicking a graph node RE-SCOPES the graph: the clicked object becomes the
-  // new seed, so the canvas shows just that object's lineage (its upstream
-  // sources + downstream consumers).
+  // Selecting a node already on the canvas only moves the selection (access
+  // panel, title, URL); the graph and its layout stay put.
   const onNodeSelect = (id: string) => {
-    setSelectedUcAsset(null);
-    if (id === seedId) {
-      setSelectedId(id);
-      return;
-    }
     const node =
       neighborhood?.assets.find((a) => a.id === id) ?? assets.find((a) => a.id === id);
-    setSeedId(id);
     setSelectedId(id);
+    const ucParts = id.split('.');
+    if (ucParts.length === 3) {
+      setSelectedUcAsset((current) =>
+        current?.fullName === id
+          ? current
+          : {
+              catalogName: ucParts[0],
+              schemaName: ucParts[1],
+              name: ucParts[2],
+              fullName: id,
+              tableType: node?.assetType ?? 'TABLE',
+              owner: node?.ownerEmail ?? null,
+              comment: null,
+            },
+      );
+      setSearchParams({ asset: id }, { replace: true });
+      return;
+    }
+    setSelectedUcAsset(null);
     if (node) setSearchParams({ asset: node.assetName }, { replace: true });
   };
 
   const onUcAssetSelect = (asset: UcAsset) => {
     setSelectedUcAsset(asset);
-    setSeedId(null);
-    setSelectedId(null);
+    if (neighborhood?.assets.some((a) => a.id === asset.fullName)) {
+      setSelectedId(asset.fullName);
+      setSearchParams({ asset: asset.fullName }, { replace: true });
+      return;
+    }
+    setSeedId(asset.fullName);
+    setSelectedId(asset.fullName);
     setNeighborhood(null);
     setKpis(null);
     setGrants([]);
@@ -196,11 +214,11 @@ export function LineageExplorerView() {
             </div>
             <h1 className="display text-2xl font-semibold text-foreground mt-1">
               {selectedUcAsset?.name ?? selectedAsset?.assetName ?? 'Select an asset'}
-              {(selectedUcAsset ?? selectedAsset) && (
+              {(selectedUcAsset?.tableType || selectedAsset) && (
                 <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  {selectedUcAsset
-                    ? selectedUcAsset.tableType.toLowerCase().replaceAll('_', ' ')
-                    : assetTypeLabel(selectedAsset!.assetType)}
+                  {assetTypeLabel(
+                    selectedUcAsset?.tableType || selectedAsset!.assetType,
+                  ).toLowerCase()}
                 </span>
               )}
             </h1>
@@ -228,7 +246,6 @@ export function LineageExplorerView() {
               {seedId && neighborhood ? (
                 <LineageGraph
                   key={seedId}
-                  seedId={seedId}
                   selectedId={selectedId}
                   assets={neighborhood.assets}
                   edges={neighborhood.edges}
@@ -236,14 +253,12 @@ export function LineageExplorerView() {
                 />
               ) : (
                 <div className="flex items-center justify-center h-[420px] px-8 text-center text-sm text-muted-foreground">
-                  {selectedUcAsset
-                    ? 'Unity Catalog asset selected. Its real lineage is not loaded yet.'
-                    : 'Select an asset to load lineage.'}
+                  {seedId ? 'Loading lineage…' : 'Select an asset to load lineage.'}
                 </div>
               )}
             </div>
             <AccessPanel
-              asset={selectedUcAsset ? null : selectedAsset}
+              asset={selectedAsset}
               grants={grants}
               loading={grantsLoading}
             />

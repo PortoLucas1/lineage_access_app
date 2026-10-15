@@ -20,8 +20,10 @@ It was captured from `e2-demo-field-eng` on 2026-10-14.
 - Real table and column lineage exists in `system.access`
 
 Because Unity Catalog inheritance is the source of the effective permissions,
-`permissions.tf` models the existing grants on `porto_catalog`. Adding duplicate
-schema or table grants would not mirror the current permission design.
+`permissions.tf` models the existing grants on `porto_catalog`, using
+`declared-grants.json` as the shared manifest consumed by the app's drift
+comparison. Adding duplicate schema or table grants would not mirror the current
+permission design.
 
 ## Safety model
 
@@ -37,7 +39,7 @@ and future object in the catalog, not only `dbdemos_pipeline_bike`.
 
 `databricks_grant` is authoritative for one principal on one catalog. Enabling
 the gate imports each existing principal/catalog pair and then manages the
-privilege list captured in `permissions.tf`.
+privilege list captured in `declared-grants.json`.
 
 Do not enable or apply the grant resources without reviewing the plan:
 

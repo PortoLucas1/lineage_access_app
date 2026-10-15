@@ -5,7 +5,6 @@
  */
 import {
   Table2,
-  Layers,
   Eye,
   BarChart3,
   PanelsTopLeft,
@@ -14,6 +13,7 @@ import {
   Bot,
   type LucideIcon,
 } from 'lucide-react';
+import { UcAssetIcon } from './ucIcons';
 
 export type Criticality = 'high' | 'medium' | 'low' | string | null;
 
@@ -40,13 +40,19 @@ export function criticalityTextColor(c: Criticality): string {
 // Unity-Catalog-style node cards. Distinct hue per type so the graph reads at
 // a glance (table = navy, MV = orange = the catalyst, Tableau = teal, etc.).
 export function assetTypeColor(type: string): string {
-  switch (type) {
+  switch (normalizeGraphAssetType(type)) {
     case 'table':
-      return '#094074';
+      return 'var(--asset-table)';
+    case 'streaming_table':
+      return '#0284C7';
     case 'materialized_view':
       return '#FE9000';
     case 'view':
-      return '#3C6997';
+    case 'metric_view':
+      return 'var(--asset-view)';
+    case 'external':
+    case 'foreign':
+      return '#0F766E';
     case 'dbsql_dashboard':
       return '#2E8B9E';
     case 'tableau_dashboard':
@@ -63,12 +69,9 @@ export function assetTypeColor(type: string): string {
 }
 
 export function assetTypeIcon(type: string): LucideIcon {
-  switch (type) {
-    case 'table':
-      return Table2;
-    case 'materialized_view':
-      return Layers;
+  switch (normalizeGraphAssetType(type)) {
     case 'view':
+    case 'metric_view':
       return Eye;
     case 'dbsql_dashboard':
       return BarChart3;
@@ -85,10 +88,27 @@ export function assetTypeIcon(type: string): LucideIcon {
   }
 }
 
+export function AssetTypeGlyph({ type, size = 17 }: { type: string; size?: number }) {
+  const ucTableType = toUcTableType(type);
+  if (ucTableType) {
+    return <UcAssetIcon tableType={ucTableType} width={size} height={size} />;
+  }
+  const Icon = assetTypeIcon(type);
+  return <Icon size={size} />;
+}
+
 export function assetTypeLabel(type: string): string {
-  switch (type) {
+  switch (normalizeGraphAssetType(type)) {
+    case 'streaming_table':
+      return 'Streaming Table';
     case 'materialized_view':
       return 'Materialized View';
+    case 'metric_view':
+      return 'Metric View';
+    case 'external':
+      return 'External Table';
+    case 'foreign':
+      return 'Foreign Table';
     case 'dbsql_dashboard':
       return 'AI/BI Dashboard';
     case 'tableau_dashboard':
@@ -104,7 +124,34 @@ export function assetTypeLabel(type: string): string {
     case 'agent':
       return 'Agent';
     default:
-      return type;
+      return type.replaceAll('_', ' ');
+  }
+}
+
+function normalizeGraphAssetType(type: string): string {
+  return type.toLowerCase().replace(/ /g, '_');
+}
+
+function toUcTableType(type: string): string | null {
+  switch (normalizeGraphAssetType(type)) {
+    case 'table':
+    case 'managed':
+      return 'MANAGED';
+    case 'streaming_table':
+    case 'streaming_live_table':
+      return 'STREAMING_TABLE';
+    case 'materialized_view':
+      return 'MATERIALIZED_VIEW';
+    case 'view':
+      return 'VIEW';
+    case 'metric_view':
+      return 'METRIC_VIEW';
+    case 'external':
+      return 'EXTERNAL';
+    case 'foreign':
+      return 'FOREIGN';
+    default:
+      return null;
   }
 }
 

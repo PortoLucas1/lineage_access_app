@@ -104,6 +104,14 @@
         });
       })();
     </script>
+    <script>
+      // Apply the saved theme before first paint to avoid a light flash.
+      try {
+        if (localStorage.getItem('lineage-theme') === 'dark') {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (_) {}
+    </script>
     <title>mas-chat-demo</title>
   </head>
   <body>

@@ -13,11 +13,13 @@ import {
   Separator,
   SidebarTrigger,
 } from '@databricks/appkit-ui/react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Moon, Sun } from 'lucide-react';
 import { useSession } from '@/lib/api';
+import { useTheme } from '@/lib/theme';
 
 export function AppHeader() {
   const { me, meError, configError, retry: retryBoot } = useSession();
+  const { theme, toggle: toggleTheme } = useTheme();
   const bootError = meError ?? configError;
 
   const initials = (me?.userName ?? '?')
@@ -43,6 +45,15 @@ export function AppHeader() {
           Backend error — click to retry
         </button>
       )}
+      <button
+        type="button"
+        onClick={toggleTheme}
+        aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        className="inline-flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+      >
+        {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
+      </button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button

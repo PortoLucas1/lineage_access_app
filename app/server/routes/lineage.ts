@@ -8,6 +8,14 @@ import {
   listAssets,
 } from '../db/queries/index.js';
 import type { AppDb } from '../db/index.js';
+import {
+  getUcAsset,
+  getUcColumnLineage,
+  getUcKpis,
+  getUcLineageNeighborhood,
+  isUcFullName,
+} from '../uc/lineage.js';
+import { getUcGrantComparison } from '../uc/permissions.js';
 
 /**
  * Lineage & Access read routes — drive the Lineage Explorer page.
@@ -41,7 +49,9 @@ export function registerLineageRoutes(app: Application, deps: { db: AppDb }): vo
   });
 
   app.get('/api/assets/:id', async (req, res) => {
-    const row = await getAsset(db, req.params.id);
+    const row = isUcFullName(req.params.id)
+      ? await getUcAsset(req, req.params.id)
+      : await getAsset(db, req.params.id);
     if (!row) {
       res.status(404).json({ error: 'asset not found' });
       return;
@@ -50,24 +60,32 @@ export function registerLineageRoutes(app: Application, deps: { db: AppDb }): vo
   });
 
   app.get('/api/assets/:id/grants', async (req, res) => {
-    const rows = await getGrantsForAsset(db, req.params.id);
+    const rows = isUcFullName(req.params.id)
+      ? await getUcGrantComparison(req, req.params.id)
+      : await getGrantsForAsset(db, req.params.id);
     res.json(rows);
   });
 
   app.get('/api/lineage/:id', async (req, res) => {
     const hops = intParam(req.query.hops, 2, 4);
-    const graph = await getLineageNeighborhood(db, req.params.id, hops);
+    const graph = isUcFullName(req.params.id)
+      ? await getUcLineageNeighborhood(req, req.params.id, hops)
+      : await getLineageNeighborhood(db, req.params.id, hops);
     res.json(graph);
   });
 
   app.get('/api/lineage/:id/kpis', async (req, res) => {
-    const kpis = await getKpis(db, req.params.id);
+    const kpis = isUcFullName(req.params.id)
+      ? await getUcKpis(req, req.params.id)
+      : await getKpis(db, req.params.id);
     res.json(kpis);
   });
 
   // Column-level lineage for any governed object — the graph expansion payload.
   app.get('/api/assets/:id/columns', async (req, res) => {
-    const cl = await getColumnLineage(db, req.params.id);
+    const cl = isUcFullName(req.params.id)
+      ? await getUcColumnLineage(req, req.params.id)
+      : await getColumnLineage(db, req.params.id);
     res.json(cl);
   });
 }

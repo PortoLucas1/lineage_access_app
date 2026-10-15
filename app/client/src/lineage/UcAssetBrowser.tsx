@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronRight, LoaderCircle, Search } from 'lucide-react';
+import { ChevronRight, LoaderCircle, PanelLeftClose, Search } from 'lucide-react';
 import {
   fetchUcAssets,
   fetchUcCatalogs,
@@ -16,6 +16,7 @@ type Props = {
   defaultSchema: string;
   selectedFullName: string | null;
   onSelect: (asset: UcAsset) => void;
+  onCollapse: () => void;
 };
 
 export function UcAssetBrowser({
@@ -23,6 +24,7 @@ export function UcAssetBrowser({
   defaultSchema,
   selectedFullName,
   onSelect,
+  onCollapse,
 }: Props) {
   const [catalogs, setCatalogs] = useState<UcCatalog[]>([]);
   const [schemasByCatalog, setSchemasByCatalog] = useState<Record<string, UcSchema[]>>({});
@@ -156,8 +158,19 @@ export function UcAssetBrowser({
   return (
     <aside className="min-w-0 rounded-xl border border-border bg-card lg:sticky lg:top-4 lg:max-h-[calc(100vh-6.5rem)] flex flex-col overflow-hidden">
       <div className="p-3 border-b border-border space-y-2">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-          Unity Catalog
+        <div className="flex items-center justify-between">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+            Unity Catalog
+          </div>
+          <button
+            type="button"
+            onClick={onCollapse}
+            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            title="Collapse Unity Catalog"
+            aria-label="Collapse Unity Catalog"
+          >
+            <PanelLeftClose className="size-3.5" />
+          </button>
         </div>
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />

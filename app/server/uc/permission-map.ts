@@ -4,7 +4,6 @@ import { executeStatement, sqlLiteral, workspaceHost } from '../lib/statement-ex
 import {
   accessLevel,
   privilegeAppliesTo,
-  grantKey,
   type AccessLevel,
   type AssetCategory,
 } from './access-level.js';
@@ -81,13 +80,7 @@ export async function getPermissionMap(
   const add = (fullName: string, grant: PrivilegeGrant, category: AssetCategory) => {
     if (category !== 'catalog' && !privilegeAppliesTo(grant.privilege, category)) return;
     const list = byObject.get(fullName) ?? [];
-    const key = grantKey(
-      grant.privilege,
-      grant.conveyedBy,
-      grant.inheritedFromType,
-      grant.inheritedFromName,
-    );
-    if (list.some((item) => grantKey(item.privilege, item.conveyedBy, item.inheritedFromType, item.inheritedFromName) === key)) {
+    if (list.some((item) => item.privilege === grant.privilege && item.conveyedBy === grant.conveyedBy)) {
       return;
     }
     list.push(grant);

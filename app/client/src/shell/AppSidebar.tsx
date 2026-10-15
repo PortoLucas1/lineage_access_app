@@ -11,11 +11,12 @@ import {
   SidebarRail,
   useSidebar,
 } from '@databricks/appkit-ui/react';
-import { Network } from 'lucide-react';
+import { Network, Shield } from 'lucide-react';
 import { useSession } from '@/lib/api';
 
 const navItems = [
   { to: '/', label: 'Lineage Explorer', icon: Network, end: true },
+  { to: '/permissions', label: 'Permissions mapping', icon: Shield, end: false },
 ];
 
 export function AppSidebar() {

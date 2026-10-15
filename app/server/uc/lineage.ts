@@ -277,8 +277,14 @@ function fallbackAsset(fullName: string): AssetRow {
 
 function normalizeAssetType(tableType: string): string {
   const normalized = tableType.toUpperCase().replace(/ /g, '_');
+  if (normalized === 'STREAMING_TABLE' || normalized === 'STREAMING_LIVE_TABLE') {
+    return 'streaming_table';
+  }
   if (normalized === 'MATERIALIZED_VIEW') return 'materialized_view';
+  if (normalized === 'METRIC_VIEW') return 'metric_view';
   if (normalized === 'VIEW') return 'view';
+  if (normalized === 'EXTERNAL') return 'external';
+  if (normalized === 'FOREIGN') return 'foreign';
   return 'table';
 }
 

@@ -12,11 +12,11 @@
  * Layout = pipeline depth (sources on the left), independent of the selected
  * node, so selecting a card never moves the others.
  */
-import { createElement, useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ChevronRight, LoaderCircle, Maximize2, Minimize2 } from 'lucide-react';
 import { fetchColumnLineage } from '@/lib/lineage';
 import type { AssetRow, ColumnLineage, ColumnRow, EdgeRow } from '@/shared/types';
-import { assetTypeColor, assetTypeIcon, assetTypeLabel } from './assetVisuals';
+import { AssetTypeGlyph, assetTypeColor, assetTypeLabel } from './assetVisuals';
 
 const NODE_W = 208;
 const EXPANDED_NODE_W = 248;
@@ -378,7 +378,7 @@ function Node({
               color: accent,
             }}
           >
-            {createElement(assetTypeIcon(node.assetType), { size: 17 })}
+            <AssetTypeGlyph type={node.assetType} size={17} />
           </div>
         </foreignObject>
       </g>

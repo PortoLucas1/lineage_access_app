@@ -216,9 +216,9 @@ export function LineageExplorerView() {
               {selectedUcAsset?.name ?? selectedAsset?.assetName ?? 'Select an asset'}
               {(selectedUcAsset?.tableType || selectedAsset) && (
                 <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  {selectedUcAsset?.tableType
-                    ? selectedUcAsset.tableType.toLowerCase().replaceAll('_', ' ')
-                    : assetTypeLabel(selectedAsset!.assetType).toLowerCase()}
+                  {assetTypeLabel(
+                    selectedUcAsset?.tableType || selectedAsset!.assetType,
+                  ).toLowerCase()}
                 </span>
               )}
             </h1>

@@ -2,8 +2,7 @@
  * Lineage Explorer — the app's hero page.
  *
  *   KPI strip  (KpiCards)      — governed assets · new edges · blast radius $ · PII exposure
- *   Asset picker (search)      — defaults to the top asset by downstream_count
- *                                (mv_exec_revenue_daily), so the demo opens on the story
+ *   Asset picker               — empty until the user picks a Unity Catalog asset
  *   Lineage graph (LineageGraph) — upstream sources → selected asset → downstream consumers.
  *     Clicking a node selects it without re-laying out the graph; picking an
  *     asset outside the current graph loads its lineage. Every node has an
@@ -37,8 +36,6 @@ import { AccessPanel } from './AccessPanel';
 import { UcAssetBrowser } from './UcAssetBrowser';
 import { assetTypeLabel } from './assetVisuals';
 
-const DEFAULT_SEED_NAME = 'mv_exec_revenue_daily';
-
 export function LineageExplorerView() {
   const { config } = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -54,35 +51,31 @@ export function LineageExplorerView() {
   const [grantsLoading, setGrantsLoading] = useState(false);
   const [selectedUcAsset, setSelectedUcAsset] = useState<UcAsset | null>(null);
 
-  // Load the asset catalog once; pick the seed (URL param → default MV → top asset).
+  // Load the Lakebase catalog for graph lookups. Only open a graph when the
+  // URL names an asset or the user picks one in the browser.
   useEffect(() => {
     let alive = true;
     fetchAssets()
       .then((rows) => {
         if (!alive) return;
         setAssets(rows);
-        if (seedId) return;
-        const ucParts = assetParam?.split('.') ?? [];
+        if (seedId || !assetParam) return;
+        const ucParts = assetParam.split('.');
         if (ucParts.length === 3) {
           setSelectedUcAsset({
             catalogName: ucParts[0],
             schemaName: ucParts[1],
             name: ucParts[2],
-            fullName: ucParts.join('.'),
+            fullName: assetParam,
             tableType: '',
             owner: null,
             comment: null,
           });
-          setSeedId(ucParts.join('.'));
-          setSelectedId(ucParts.join('.'));
+          setSeedId(assetParam);
+          setSelectedId(assetParam);
           return;
         }
-        let seed: AssetRow | undefined;
-        if (assetParam) {
-          seed = rows.find((a) => a.assetName === assetParam || a.id === assetParam);
-        }
-        if (!seed) seed = rows.find((a) => a.assetName === DEFAULT_SEED_NAME);
-        if (!seed) seed = rows[0];
+        const seed = rows.find((a) => a.assetName === assetParam || a.id === assetParam);
         if (seed) {
           setSeedId(seed.id);
           setSelectedId(seed.id);

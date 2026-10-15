@@ -49,6 +49,11 @@
     }
   },
 
+  "ucExplorer": {
+    "defaultCatalog": "porto_catalog",
+    "defaultSchema": "dbdemos_pipeline_bike"
+  },
+
   // Surfaces in dock header + page titles.
   "branding": {
     "appName": "Northpeak Lineage & Access Console"

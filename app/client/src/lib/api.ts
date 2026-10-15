@@ -112,6 +112,10 @@ type AppConfig = {
   agentMlflowExperimentId: string | null;
   dashboardId: string;
   branding: { appName: string };
+  ucExplorer: {
+    defaultCatalog: string;
+    defaultSchema: string;
+  };
   assistantScript: ScriptStep[];
 };
 

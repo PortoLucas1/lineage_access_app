@@ -13,7 +13,15 @@
  * node, so selecting a card never moves the others.
  */
 import { useCallback, useMemo, useState } from 'react';
-import { ChevronRight, LoaderCircle, Maximize2, Minimize2 } from 'lucide-react';
+import {
+  ChevronRight,
+  LoaderCircle,
+  LocateFixed,
+  Maximize2,
+  Minus,
+  Minimize2,
+  Plus,
+} from 'lucide-react';
 import { fetchColumnLineage } from '@/lib/lineage';
 import type { AssetRow, ColumnLineage, ColumnRow, EdgeRow } from '@/shared/types';
 import { AssetTypeGlyph, assetTypeColor, assetTypeLabel } from './assetVisuals';
@@ -44,16 +52,25 @@ export function LineageGraph({
   assets,
   edges,
   onSelect,
+  focusMode = false,
 }: {
   selectedId: string | null;
   assets: AssetRow[];
   edges: EdgeRow[];
   onSelect: (id: string) => void;
+  focusMode?: boolean;
 }) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [expandedEdgeId, setExpandedEdgeId] = useState<string | null>(null);
   const [columnData, setColumnData] = useState<Record<string, ColumnLineage>>({});
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [view, setView] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [drag, setDrag] = useState<{
+    clientX: number;
+    clientY: number;
+    view: { x: number; y: number; w: number; h: number };
+  } | null>(null);
 
   const ensureColumns = useCallback(
     async (id: string) => {
@@ -115,6 +132,33 @@ export function LineageGraph({
     [assets, edges, expandedIds, columnData],
   );
 
+  const focusId = hoveredId ?? selectedId;
+  const focusedIds = useMemo(() => {
+    if (!focusId) return new Set<string>();
+    const ids = new Set([focusId]);
+    for (const edge of edges) {
+      if (edge.sourceAssetId === focusId) ids.add(edge.targetAssetId);
+      if (edge.targetAssetId === focusId) ids.add(edge.sourceAssetId);
+    }
+    return ids;
+  }, [focusId, edges]);
+
+  const zoom = (factor: number) => {
+    setView((current) => {
+      const base = current ?? { x: 0, y: 0, w: width, h: height };
+      const nextW = Math.min(width * 2, Math.max(width * 0.25, base.w * factor));
+      const nextH = Math.min(height * 2, Math.max(height * 0.25, base.h * factor));
+      return {
+        x: base.x + (base.w - nextW) / 2,
+        y: base.y + (base.h - nextH) / 2,
+        w: nextW,
+        h: nextH,
+      };
+    });
+  };
+
+  const fit = () => setView(null);
+
   const expandedColumnEdges = useMemo(() => {
     if (!expandedEdgeId) return [];
     const edge = edges.find((candidate) => candidate.id === expandedEdgeId);
@@ -135,14 +179,66 @@ export function LineageGraph({
   }
 
   return (
-    <div className="w-full min-w-0 overflow-hidden rounded-xl border border-border bg-[var(--card)]">
+    <div
+      className={`relative w-full min-w-0 overflow-hidden rounded-xl border border-border bg-[var(--card)] ${
+        focusMode ? 'h-[calc(100vh-7rem)] min-h-[620px]' : 'h-[clamp(480px,62vh,720px)]'
+      }`}
+    >
+      <div className="absolute left-2 top-2 z-10 flex items-center gap-1 rounded-md border border-border bg-card/95 p-1 shadow-sm backdrop-blur">
+        <button
+          type="button"
+          onClick={() => zoom(0.8)}
+          className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          title="Zoom in"
+          aria-label="Zoom in"
+        >
+          <Plus className="size-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => zoom(1.25)}
+          className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          title="Zoom out"
+          aria-label="Zoom out"
+        >
+          <Minus className="size-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={fit}
+          className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          title="Fit graph to view"
+          aria-label="Fit graph to view"
+        >
+          <LocateFixed className="size-3.5" />
+        </button>
+      </div>
       <svg
         width="100%"
-        viewBox={`0 0 ${width} ${height}`}
-        preserveAspectRatio="xMinYMid meet"
-        className="block h-auto max-w-full"
+        height="100%"
+        viewBox={
+          view
+            ? `${view.x} ${view.y} ${view.w} ${view.h}`
+            : `0 0 ${width} ${height}`
+        }
+        preserveAspectRatio="xMidYMid meet"
+        className={`block max-w-full touch-none ${drag ? 'cursor-grabbing' : 'cursor-grab'}`}
         role="img"
         aria-label="Lineage graph"
+        onPointerMove={(event) => {
+          if (!drag) return;
+          const rect = event.currentTarget.getBoundingClientRect();
+          const dx = (event.clientX - drag.clientX) * (drag.view.w / rect.width);
+          const dy = (event.clientY - drag.clientY) * (drag.view.h / rect.height);
+          setView({ ...drag.view, x: drag.view.x - dx, y: drag.view.y - dy });
+        }}
+        onPointerUp={() => setDrag(null)}
+        onPointerCancel={() => setDrag(null)}
+        onWheel={(event) => {
+          if (event.ctrlKey || event.metaKey) event.preventDefault();
+          else return;
+          zoom(event.deltaY > 0 ? 1.12 : 0.88);
+        }}
       >
         <defs>
           {/* dot-grid background, like the UC lineage canvas */}
@@ -184,7 +280,21 @@ export function LineageGraph({
           </marker>
         </defs>
 
-        <rect width={width} height={height} fill="url(#lin-dots)" />
+        <rect
+          width={width}
+          height={height}
+          fill="url(#lin-dots)"
+          onPointerDown={(event) => {
+            const svg = event.currentTarget.ownerSVGElement;
+            if (!svg) return;
+            svg.setPointerCapture(event.pointerId);
+            setDrag({
+              clientX: event.clientX,
+              clientY: event.clientY,
+              view: view ?? { x: 0, y: 0, w: width, h: height },
+            });
+          }}
+        />
 
         {/* edges — smooth S-curves docking into card ports */}
         {edges.map((e) => {
@@ -201,8 +311,10 @@ export function LineageGraph({
           const isExpanded = e.id === expandedEdgeId;
           const midX = (x1 + x2) / 2;
           const midY = (y1 + y2) / 2;
+          const isFocused =
+            !focusId || e.sourceAssetId === focusId || e.targetAssetId === focusId;
           return (
-            <g key={e.id}>
+            <g key={e.id} opacity={isFocused ? 1 : 0.16}>
               <path
                 d={`M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`}
                 fill="none"
@@ -301,6 +413,8 @@ export function LineageGraph({
             isLoading={loadingIds.has(n.id)}
             onSelect={onSelect}
             onExpandColumns={toggleNodeColumns}
+            opacity={!focusId || focusedIds.has(n.id) ? 1 : 0.22}
+            onHover={setHoveredId}
           />
         ))}
       </svg>
@@ -316,6 +430,8 @@ function Node({
   isLoading,
   onSelect,
   onExpandColumns,
+  opacity,
+  onHover,
 }: {
   node: Positioned;
   isSelected: boolean;
@@ -324,6 +440,8 @@ function Node({
   isLoading: boolean;
   onSelect: (id: string) => void;
   onExpandColumns: (id: string) => void;
+  opacity: number;
+  onHover: (id: string | null) => void;
 }) {
   const accent = assetTypeColor(node.assetType);
   const active = isSelected;
@@ -339,6 +457,9 @@ function Node({
       transform={`translate(${node.x}, ${node.y})`}
       style={{ cursor: 'pointer' }}
       onClick={() => onSelect(node.id)}
+      onMouseEnter={() => onHover(node.id)}
+      onMouseLeave={() => onHover(null)}
+      opacity={opacity}
     >
       {/* soft drop shadow */}
       <rect

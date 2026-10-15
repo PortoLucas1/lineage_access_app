@@ -12,7 +12,7 @@ type StatementResponse = {
   };
 };
 
-function workspaceHost(): string {
+export function workspaceHost(): string {
   const raw = (process.env.DATABRICKS_HOST ?? '').replace(/\/+$/, '');
   if (!raw) throw new Error('DATABRICKS_HOST is not configured');
   return raw.startsWith('http') ? raw : `https://${raw}`;

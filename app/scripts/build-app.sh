@@ -25,6 +25,9 @@ LOCKFILE="$APP_DIR/package-lock.json"
 
 cd "$APP_DIR"
 
+echo "[build-app] syncing Terraform permission manifest…"
+cp "$APP_DIR/../terraform/declared-grants.json" "$APP_DIR/config/declared-grants.json"
+
 echo "[build-app] installing npm dependencies (incl. dev)…"
 npm install --include=dev
 

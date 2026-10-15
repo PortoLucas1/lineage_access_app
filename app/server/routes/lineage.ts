@@ -15,6 +15,7 @@ import {
   getUcLineageNeighborhood,
   isUcFullName,
 } from '../uc/lineage.js';
+import { getUcGrantComparison } from '../uc/permissions.js';
 
 /**
  * Lineage & Access read routes — drive the Lineage Explorer page.
@@ -59,7 +60,9 @@ export function registerLineageRoutes(app: Application, deps: { db: AppDb }): vo
   });
 
   app.get('/api/assets/:id/grants', async (req, res) => {
-    const rows = await getGrantsForAsset(db, req.params.id);
+    const rows = isUcFullName(req.params.id)
+      ? await getUcGrantComparison(req, req.params.id)
+      : await getGrantsForAsset(db, req.params.id);
     res.json(rows);
   });
 

@@ -75,9 +75,10 @@ export function registerPermissionRoutes(app: Application): void {
     try {
       const catalog = strParam(req.query.catalog);
       const principal = strParam(req.query.principal);
-      if (!catalog) throw new Error('catalog is required');
+      const kindRaw = strParam(req.query.kind);
       if (!principal) throw new Error('principal is required');
-      res.json(await getPermissionMap(req, catalog, principal));
+      const kind = kindRaw ? parseKind(kindRaw) : undefined;
+      res.json(await getPermissionMap(req, catalog || null, principal, kind));
     } catch (error) {
       routeError(res, error);
     }

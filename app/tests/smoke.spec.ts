@@ -49,6 +49,7 @@ test('smoke test - app loads lineage explorer', async ({ page }) => {
   await page.goto('/');
 
   await expect(page.getByRole('link', { name: 'Lineage Explorer' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Permissions mapping' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Dashboard' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Home' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Analytics' })).toHaveCount(0);

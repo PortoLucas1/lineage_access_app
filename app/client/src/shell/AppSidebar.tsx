@@ -11,12 +11,11 @@ import {
   SidebarRail,
   useSidebar,
 } from '@databricks/appkit-ui/react';
-import { LayoutDashboard, Network } from 'lucide-react';
+import { Network } from 'lucide-react';
 import { useSession } from '@/lib/api';
 
 const navItems = [
   { to: '/', label: 'Lineage Explorer', icon: Network, end: true },
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, end: false },
 ];
 
 export function AppSidebar() {

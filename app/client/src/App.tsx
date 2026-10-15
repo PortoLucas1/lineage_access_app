@@ -3,7 +3,6 @@
  *
  * Each route maps to one "section" of the demo — see the folder names:
  *   lineage/    — Lineage Explorer (graph + access panel + KPI cards)
- *   dashboard/  — embedded AI/BI dashboard iframe
  *   platform/   — Databricks Data + AI pitch page
  *
  * Chrome (sidebar + header) lives in shell/.
@@ -14,7 +13,6 @@ import { SidebarInset, SidebarProvider } from '@databricks/appkit-ui/react';
 import { AppSidebar } from '@/shell/AppSidebar';
 import { AppHeader } from '@/shell/AppHeader';
 import { LineageExplorerView } from '@/lineage/LineageExplorerView';
-import { DashboardView } from '@/dashboard/DashboardView';
 import { SessionProvider } from '@/lib/api';
 import { RouteError } from './RouteError';
 
@@ -57,7 +55,7 @@ const router = createBrowserRouter(
         { path: '/lineage', element: <LineageExplorerView /> },
         { path: '/analytics', element: <Navigate to="/" replace /> },
         { path: '/c/:id', element: <Navigate to="/" replace /> },
-        { path: '/dashboard', element: <DashboardView /> },
+        { path: '/dashboard', element: <Navigate to="/" replace /> },
       ],
     },
   ],

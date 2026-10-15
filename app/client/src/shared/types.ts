@@ -152,7 +152,7 @@ export type MappedAsset = {
 };
 
 export type PermissionMap = {
-  catalog: string;
+  catalog: string | null;
   principal: string;
   truncated: boolean;
   errors: string[];

@@ -7,6 +7,7 @@ import {
   type AccessLevel,
   type AssetCategory,
 } from './access-level.js';
+import type { IdentityKind } from './identities.js';
 
 export type PrivilegeGrant = {
   privilege: string;
@@ -26,12 +27,27 @@ export type MappedAsset = {
 };
 
 export type PermissionMap = {
-  catalog: string;
+  catalog: string | null;
   principal: string;
   truncated: boolean;
   errors: string[];
   categories: Record<AssetCategory, MappedAsset[]>;
 };
+
+export function principalsToQuery(
+  principal: string,
+  kind: IdentityKind | undefined,
+  conveyedBy: Iterable<string>,
+): string[] {
+  const trimmed = principal.trim();
+  if (kind === 'group') return [trimmed];
+  const names = new Set<string>([trimmed]);
+  for (const name of conveyedBy) {
+    const next = name.trim();
+    if (next) names.add(next);
+  }
+  return [...names];
+}
 
 type EffectiveResponse = {
   privilege_assignments?: Array<{
@@ -50,118 +66,168 @@ const SCHEMA_LIMIT = 400;
 
 export async function getPermissionMap(
   req: Request,
-  catalog: string,
+  catalog: string | null,
   principal: string,
+  kind?: IdentityKind,
 ): Promise<PermissionMap> {
-  if (!IDENTIFIER.test(catalog)) {
+  const catalogFilter = catalog && catalog !== 'all' ? catalog : null;
+  if (catalogFilter && !IDENTIFIER.test(catalogFilter)) {
     throw new Error('catalog must contain only letters, numbers, underscores, or hyphens');
   }
   const trimmedPrincipal = principal.trim();
   if (!trimmedPrincipal) throw new Error('principal is required');
 
   const errors: string[] = [];
-  const catalogGrants = await getEffective(req, 'catalog', catalog, trimmedPrincipal);
+  let effectiveCatalogGrants: PrivilegeGrant[] = [];
+  let conveyedBy: string[] = [];
 
-  const conveying = new Set<string>([trimmedPrincipal]);
-  for (const grant of catalogGrants) conveying.add(grant.conveyedBy);
+  if (kind !== 'group') {
+    const probeCatalog = catalogFilter ?? process.env.DATABRICKS_DEFAULT_CATALOG ?? 'porto_catalog';
+    try {
+      const probed = await getEffective(req, 'catalog', probeCatalog, trimmedPrincipal);
+      conveyedBy = probed.map((grant) => grant.conveyedBy);
+      if (catalogFilter) effectiveCatalogGrants = probed;
+    } catch (error) {
+      if (catalogFilter) throw error;
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+  }
 
-  const [schemas, tables, volumes, functions, sqlGrants] = await Promise.all([
-    listSchemas(req, catalog),
-    listTables(req, catalog),
-    listOptional(req, catalog, 'volume', errors),
-    listOptional(req, catalog, 'function', errors),
-    listDirectGrants(req, catalog, [...conveying], errors),
-  ]);
+  const principals = principalsToQuery(trimmedPrincipal, kind, conveyedBy);
+  const sqlGrants = await listDirectGrants(req, catalogFilter, principals, errors);
+
+  const schemas: NamedObject[] = [];
+  const tables: NamedObject[] = [];
+  const volumes: NamedObject[] = [];
+  const functions: NamedObject[] = [];
+
+  if (catalogFilter) {
+    const [listedSchemas, listedTables, listedVolumes, listedFunctions] = await Promise.all([
+      listSchemas(req, catalogFilter),
+      listTables(req, catalogFilter),
+      listOptional(req, catalogFilter, 'volume', errors),
+      listOptional(req, catalogFilter, 'function', errors),
+    ]);
+    schemas.push(...listedSchemas);
+    tables.push(...listedTables);
+    volumes.push(...listedVolumes);
+    functions.push(...listedFunctions);
+  }
 
   const truncated =
-    schemas.length >= SCHEMA_LIMIT || tables.length >= TABLE_LIMIT;
+    schemas.length >= SCHEMA_LIMIT
+    || tables.length >= TABLE_LIMIT
+    || sqlGrants.length >= TABLE_LIMIT;
 
-  const byObject = new Map<string, PrivilegeGrant[]>();
-  const add = (fullName: string, grant: PrivilegeGrant, category: AssetCategory) => {
+  const byObject = new Map<string, ObjectAccum>();
+  const add = (
+    fullName: string,
+    grant: PrivilegeGrant,
+    category: AssetCategory,
+    tableType: string | null = null,
+  ) => {
     if (category !== 'catalog' && !privilegeAppliesTo(grant.privilege, category)) return;
-    const list = byObject.get(fullName) ?? [];
-    if (list.some((item) => item.privilege === grant.privilege && item.conveyedBy === grant.conveyedBy)) {
+    const current = byObject.get(fullName);
+    if (!current) {
+      byObject.set(fullName, {
+        category,
+        name: fullName.split('.').pop() ?? fullName,
+        tableType,
+        privileges: [grant],
+      });
       return;
     }
-    list.push(grant);
-    byObject.set(fullName, list);
+    if (tableType && !current.tableType) current.tableType = tableType;
+    if (current.privileges.some((item) => item.privilege === grant.privilege && item.conveyedBy === grant.conveyedBy)) {
+      return;
+    }
+    current.privileges.push(grant);
   };
 
-  for (const grant of catalogGrants) {
-    add(catalog, grant, 'catalog');
+  const propagateCatalogGrant = (catalogName: string, grant: PrivilegeGrant) => {
+    add(catalogName, grant, 'catalog');
     for (const schema of schemas) {
-      if (privilegeAppliesTo(grant.privilege, 'schema')) {
-        add(schema.fullName, inherit(grant, 'CATALOG', catalog), 'schema');
+      if (schema.fullName.startsWith(`${catalogName}.`) && privilegeAppliesTo(grant.privilege, 'schema')) {
+        add(schema.fullName, inherit(grant, 'CATALOG', catalogName), 'schema');
       }
     }
     for (const table of tables) {
-      if (privilegeAppliesTo(grant.privilege, 'table')) {
-        add(table.fullName, inherit(grant, 'CATALOG', catalog), 'table');
+      if (table.fullName.startsWith(`${catalogName}.`) && privilegeAppliesTo(grant.privilege, 'table')) {
+        add(table.fullName, inherit(grant, 'CATALOG', catalogName), 'table', table.tableType);
       }
     }
     for (const volume of volumes) {
-      if (privilegeAppliesTo(grant.privilege, 'volume')) {
-        add(volume.fullName, inherit(grant, 'CATALOG', catalog), 'volume');
+      if (volume.fullName.startsWith(`${catalogName}.`) && privilegeAppliesTo(grant.privilege, 'volume')) {
+        add(volume.fullName, inherit(grant, 'CATALOG', catalogName), 'volume', volume.tableType);
       }
     }
     for (const fn of functions) {
-      if (privilegeAppliesTo(grant.privilege, 'function')) {
-        add(fn.fullName, inherit(grant, 'CATALOG', catalog), 'function');
+      if (fn.fullName.startsWith(`${catalogName}.`) && privilegeAppliesTo(grant.privilege, 'function')) {
+        add(fn.fullName, inherit(grant, 'CATALOG', catalogName), 'function', fn.tableType);
       }
     }
+  };
+
+  for (const grant of effectiveCatalogGrants) {
+    if (catalogFilter) propagateCatalogGrant(catalogFilter, grant);
   }
 
   for (const row of sqlGrants) {
     add(row.fullName, row.grant, row.category);
+    if (row.category === 'catalog') propagateCatalogGrant(row.fullName, row.grant);
     if (row.category === 'schema') {
       for (const table of tables) {
         if (table.schemaFullName !== row.fullName) continue;
         if (privilegeAppliesTo(row.grant.privilege, 'table')) {
-          add(table.fullName, inherit(row.grant, 'SCHEMA', row.fullName), 'table');
+          add(table.fullName, inherit(row.grant, 'SCHEMA', row.fullName), 'table', table.tableType);
         }
       }
       for (const volume of volumes) {
         if (volume.schemaFullName !== row.fullName) continue;
         if (privilegeAppliesTo(row.grant.privilege, 'volume')) {
-          add(volume.fullName, inherit(row.grant, 'SCHEMA', row.fullName), 'volume');
+          add(volume.fullName, inherit(row.grant, 'SCHEMA', row.fullName), 'volume', volume.tableType);
         }
       }
       for (const fn of functions) {
         if (fn.schemaFullName !== row.fullName) continue;
         if (privilegeAppliesTo(row.grant.privilege, 'function')) {
-          add(fn.fullName, inherit(row.grant, 'SCHEMA', row.fullName), 'function');
+          add(fn.fullName, inherit(row.grant, 'SCHEMA', row.fullName), 'function', fn.tableType);
         }
       }
     }
   }
 
-  const catalogAsset = materialize(catalog, 'catalog', catalog, catalog, null, byObject);
   const categories: PermissionMap['categories'] = {
-    catalog: catalogAsset ? [catalogAsset] : [],
-    schema: schemas
-      .map((schema) =>
-        materialize(schema.fullName, 'schema', schema.name, schema.fullName, null, byObject),
-      )
-      .filter((asset): asset is MappedAsset => asset !== null),
-    table: tables
-      .map((table) =>
-        materialize(table.fullName, 'table', table.name, table.fullName, table.tableType, byObject),
-      )
-      .filter((asset): asset is MappedAsset => asset !== null),
-    volume: volumes
-      .map((volume) =>
-        materialize(volume.fullName, 'volume', volume.name, volume.fullName, volume.tableType, byObject),
-      )
-      .filter((asset): asset is MappedAsset => asset !== null),
-    function: functions
-      .map((fn) =>
-        materialize(fn.fullName, 'function', fn.name, fn.fullName, fn.tableType, byObject),
-      )
-      .filter((asset): asset is MappedAsset => asset !== null),
+    catalog: [],
+    schema: [],
+    table: [],
+    volume: [],
+    function: [],
   };
+  for (const [fullName, object] of byObject) {
+    categories[object.category].push({
+      category: object.category,
+      securableType: object.category,
+      fullName,
+      name: object.name,
+      tableType: object.tableType,
+      privileges: object.privileges.sort((a, b) => a.privilege.localeCompare(b.privilege)),
+      accessLevel: accessLevel(object.privileges.map((grant) => grant.privilege)),
+    });
+  }
+  for (const key of Object.keys(categories) as AssetCategory[]) {
+    categories[key].sort((a, b) => a.fullName.localeCompare(b.fullName));
+  }
 
-  return { catalog, principal: trimmedPrincipal, truncated, errors, categories };
+  return { catalog: catalogFilter, principal: trimmedPrincipal, truncated, errors, categories };
 }
+
+type ObjectAccum = {
+  category: AssetCategory;
+  name: string;
+  tableType: string | null;
+  privileges: PrivilegeGrant[];
+};
 
 function inherit(
   grant: PrivilegeGrant,
@@ -173,27 +239,6 @@ function inherit(
     ...grant,
     inheritedFromType: type,
     inheritedFromName: name,
-  };
-}
-
-function materialize(
-  fullName: string,
-  category: AssetCategory,
-  name: string,
-  id: string,
-  tableType: string | null,
-  byObject: Map<string, PrivilegeGrant[]>,
-): MappedAsset | null {
-  const privileges = byObject.get(fullName);
-  if (!privileges?.length) return null;
-  return {
-    category,
-    securableType: category,
-    fullName: id,
-    name,
-    tableType,
-    privileges: privileges.sort((a, b) => a.privilege.localeCompare(b.privilege)),
-    accessLevel: accessLevel(privileges.map((grant) => grant.privilege)),
   };
 }
 
@@ -323,56 +368,84 @@ type SqlGrant = { fullName: string; category: AssetCategory; grant: PrivilegeGra
 
 async function listDirectGrants(
   req: Request,
-  catalog: string,
+  catalog: string | null,
   principals: string[],
   errors: string[],
 ): Promise<SqlGrant[]> {
   if (!principals.length) return [];
   const inList = principals.map((principal) => `'${sqlLiteral(principal)}'`).join(', ');
-  const grants: SqlGrant[] = [];
-  const queries: Array<{ sql: string; parse: (row: unknown[]) => SqlGrant | null }> = [
+  const catalogPred = (column: string) =>
+    catalog ? ` AND ${column} = '${sqlLiteral(catalog)}'` : '';
+  const directPred = " AND COALESCE(inherited_from, 'NONE') IN ('NONE', 'none', '')";
+
+  const scopeQueries: Array<{ sql: string; parse: (row: unknown[]) => SqlGrant | null }> = [
     {
-      sql: `SELECT schema_name, privilege_type, inherited_from, grantee
+      sql: `SELECT catalog_name, privilege_type, inherited_from, grantee
+              FROM system.information_schema.catalog_privileges
+             WHERE grantee IN (${inList})${catalogPred('catalog_name')}${directPred}
+             LIMIT ${TABLE_LIMIT}`,
+      parse: (row) => sqlGrant('catalog', String(row[0]), row, 1),
+    },
+    {
+      sql: `SELECT catalog_name, schema_name, privilege_type, inherited_from, grantee
               FROM system.information_schema.schema_privileges
-             WHERE catalog_name = '${sqlLiteral(catalog)}'
-               AND grantee IN (${inList})`,
-      parse: (row) => sqlGrant('schema', `${catalog}.${row[0]}`, row),
-    },
-    {
-      sql: `SELECT table_schema, table_name, privilege_type, inherited_from, grantee
-              FROM system.information_schema.table_privileges
-             WHERE table_catalog = '${sqlLiteral(catalog)}'
-               AND grantee IN (${inList})`,
-      parse: (row) => sqlGrant('table', `${catalog}.${row[0]}.${row[1]}`, row, 2),
-    },
-    {
-      sql: `SELECT volume_schema, volume_name, privilege_type, inherited_from, grantee
-              FROM system.information_schema.volume_privileges
-             WHERE volume_catalog = '${sqlLiteral(catalog)}'
-               AND grantee IN (${inList})`,
-      parse: (row) => sqlGrant('volume', `${catalog}.${row[0]}.${row[1]}`, row, 2),
-    },
-    {
-      sql: `SELECT routine_schema, routine_name, privilege_type, inherited_from, grantee
-              FROM system.information_schema.routine_privileges
-             WHERE routine_catalog = '${sqlLiteral(catalog)}'
-               AND grantee IN (${inList})`,
-      parse: (row) => sqlGrant('function', `${catalog}.${row[0]}.${row[1]}`, row, 2),
+             WHERE grantee IN (${inList})${catalogPred('catalog_name')}${directPred}
+               AND schema_name <> 'information_schema'
+             LIMIT ${TABLE_LIMIT}`,
+      parse: (row) => sqlGrant('schema', `${row[0]}.${row[1]}`, row, 2),
     },
   ];
+  const grants = await runGrantQueries(req, scopeQueries, errors);
+  if (!catalog) return grants;
 
-  for (const query of queries) {
-    try {
-      const rows = await executeStatement(req, query.sql);
-      for (const row of rows) {
-        const parsed = query.parse(row);
-        if (parsed) grants.push(parsed);
-      }
-    } catch (error) {
-      errors.push(error instanceof Error ? error.message : String(error));
-    }
-  }
+  const catalogIn = catalogPred('table_catalog');
+  const volumeCatalogIn = catalogPred('volume_catalog');
+  const routineCatalogIn = catalogPred('routine_catalog');
+
+  const objectQueries: Array<{ sql: string; parse: (row: unknown[]) => SqlGrant | null }> = [
+    {
+      sql: `SELECT table_catalog, table_schema, table_name, privilege_type, inherited_from, grantee
+              FROM system.information_schema.table_privileges
+             WHERE grantee IN (${inList})${catalogIn}${directPred}
+             LIMIT ${TABLE_LIMIT}`,
+      parse: (row) => sqlGrant('table', `${row[0]}.${row[1]}.${row[2]}`, row, 3),
+    },
+    {
+      sql: `SELECT volume_catalog, volume_schema, volume_name, privilege_type, inherited_from, grantee
+              FROM system.information_schema.volume_privileges
+             WHERE grantee IN (${inList})${volumeCatalogIn}${directPred}
+             LIMIT ${TABLE_LIMIT}`,
+      parse: (row) => sqlGrant('volume', `${row[0]}.${row[1]}.${row[2]}`, row, 3),
+    },
+    {
+      sql: `SELECT routine_catalog, routine_schema, routine_name, privilege_type, inherited_from, grantee
+              FROM system.information_schema.routine_privileges
+             WHERE grantee IN (${inList})${routineCatalogIn}${directPred}
+             LIMIT ${TABLE_LIMIT}`,
+      parse: (row) => sqlGrant('function', `${row[0]}.${row[1]}.${row[2]}`, row, 3),
+    },
+  ];
+  grants.push(...await runGrantQueries(req, objectQueries, errors));
   return grants;
+}
+
+async function runGrantQueries(
+  req: Request,
+  queries: Array<{ sql: string; parse: (row: unknown[]) => SqlGrant | null }>,
+  errors: string[],
+): Promise<SqlGrant[]> {
+  const batches = await Promise.all(
+    queries.map(async (query) => {
+      try {
+        const rows = await executeStatement(req, query.sql);
+        return rows.map((row) => query.parse(row)).filter((row): row is SqlGrant => row !== null);
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : String(error));
+        return [];
+      }
+    }),
+  );
+  return batches.flat();
 }
 
 function sqlGrant(

@@ -12,11 +12,11 @@ export function PermissionsMappingView() {
   const { config } = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
   const defaultCatalog = config?.ucExplorer.defaultCatalog ?? 'porto_catalog';
-  const catalog = searchParams.get('catalog') || defaultCatalog;
+  const catalog = searchParams.get('catalog');
   const selected = selectedFromParams(searchParams);
 
   const [canReadGroupMembers, setCanReadGroupMembers] = useState(false);
-  const [catalogs, setCatalogs] = useState<string[]>([defaultCatalog]);
+  const [catalogs, setCatalogs] = useState<string[]>([]);
   const [map, setMap] = useState<PermissionMap | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +27,7 @@ export function PermissionsMappingView() {
       .catch(() => setCanReadGroupMembers(false));
     fetchUcCatalogs()
       .then((rows) => setCatalogs(rows.map((row) => row.name)))
-      .catch(() => setCatalogs([defaultCatalog]));
+      .catch(() => setCatalogs(defaultCatalog ? [defaultCatalog] : []));
   }, [defaultCatalog]);
 
   useEffect(() => {
@@ -38,7 +38,7 @@ export function PermissionsMappingView() {
     }
     let cancelled = false;
     setLoading(true);
-    fetchPermissionMap(catalog, selected.handle)
+    fetchPermissionMap(catalog, selected.handle, selected.kind)
       .then((payload) => {
         if (cancelled) return;
         setMap(payload);
@@ -55,16 +55,17 @@ export function PermissionsMappingView() {
     return () => {
       cancelled = true;
     };
-  }, [catalog, selected?.handle]);
+  }, [catalog, selected?.handle, selected?.kind]);
 
   const onSelect = (identity: DirectoryIdentity) => {
     setSearchParams(
-      { catalog, principal: identity.handle, kind: identity.kind, id: identity.id },
+      { principal: identity.handle, kind: identity.kind, id: identity.id },
       { replace: true },
     );
   };
 
-  const catalogOptions = catalogs.includes(catalog) ? catalogs : [catalog, ...catalogs];
+  const catalogOptions =
+    catalog && !catalogs.includes(catalog) ? [catalog, ...catalogs] : catalogs;
 
   return (
     <div className="h-full overflow-y-auto overflow-x-hidden">
@@ -99,9 +100,10 @@ export function PermissionsMappingView() {
             <label className="text-xs text-muted-foreground">
               Catalog
               <select
-                value={catalog}
+                value={catalog ?? ''}
                 onChange={(event) => {
-                  const next: Record<string, string> = { catalog: event.target.value };
+                  const next: Record<string, string> = {};
+                  if (event.target.value) next.catalog = event.target.value;
                   if (selected) {
                     next.principal = selected.handle;
                     next.kind = selected.kind;
@@ -111,6 +113,7 @@ export function PermissionsMappingView() {
                 }}
                 className="ml-2 rounded-md border border-border bg-background px-2 py-1 text-sm text-foreground"
               >
+                <option value="">All catalogs</option>
                 {catalogOptions.map((name) => (
                   <option key={name} value={name}>
                     {name}

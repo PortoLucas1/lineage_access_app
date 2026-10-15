@@ -21,8 +21,9 @@ type SchemaNode = {
   children: MappedAsset[];
 };
 
-type Tree = {
-  catalog: { name: string; asset: MappedAsset | null };
+type CatalogNode = {
+  name: string;
+  asset: MappedAsset | null;
   schemas: SchemaNode[];
 };
 
@@ -44,38 +45,61 @@ export function AssetAccessPanel({
       </PanelMessage>
     );
   }
-  return <AccessTree key={`${map.catalog}:${map.principal}`} map={map} />;
+  return <AccessTree key={`${map.catalog ?? 'all'}:${map.principal}`} map={map} />;
 }
 
 function AccessTree({ map }: { map: PermissionMap }) {
   const tree = useMemo(() => buildTree(map), [map]);
   const [query, setQuery] = useState('');
-  const [catalogOpen, setCatalogOpen] = useState(true);
+  const [openCatalogs, setOpenCatalogs] = useState<Set<string>>(
+    () => new Set(tree.length <= 3 ? tree.map((node) => node.name) : []),
+  );
   const [openSchemas, setOpenSchemas] = useState<Set<string>>(() => new Set());
   const [openDetails, setOpenDetails] = useState<Set<string>>(() => new Set());
 
   const needle = query.trim().toLowerCase();
   const searching = needle.length > 0;
-  const matches = (asset: { name: string; fullName: string }) =>
-    asset.name.toLowerCase().includes(needle) || asset.fullName.toLowerCase().includes(needle);
+  const matches = (asset: { name: string; fullName?: string }) =>
+    asset.name.toLowerCase().includes(needle)
+    || (asset.fullName ?? '').toLowerCase().includes(needle);
 
-  const visibleSchemas = useMemo(() => {
-    if (!searching) return tree.schemas;
-    return tree.schemas
-      .map((schema) => {
-        if (matches(schema)) return schema;
-        const children = schema.children.filter(matches);
-        return children.length ? { ...schema, children } : null;
+  const visibleTree = useMemo(() => {
+    if (!searching) return tree;
+    return tree
+      .map((catalog) => {
+        const catalogMatch = matches(catalog);
+        const schemas = catalog.schemas
+          .map((schema) => {
+            if (matches(schema) || catalogMatch) return schema;
+            const children = schema.children.filter(matches);
+            return children.length ? { ...schema, children } : null;
+          })
+          .filter((schema): schema is SchemaNode => schema !== null);
+        if (catalogMatch || schemas.length) return { ...catalog, schemas };
+        return null;
       })
-      .filter((schema): schema is SchemaNode => schema !== null);
+      .filter((catalog): catalog is CatalogNode => catalog !== null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tree, needle]);
 
-  const total =
-    (tree.catalog.asset ? 1 : 0)
-    + tree.schemas.reduce((sum, schema) => sum + (schema.asset ? 1 : 0) + schema.children.length, 0);
-  const matchCount = visibleSchemas.reduce(
-    (sum, schema) => sum + (searching && matches(schema) ? 1 : 0) + (searching ? schema.children.filter(matches).length : 0),
+  const total = tree.reduce(
+    (sum, catalog) =>
+      sum
+      + (catalog.asset ? 1 : 0)
+      + catalog.schemas.reduce((inner, schema) => inner + (schema.asset ? 1 : 0) + schema.children.length, 0),
+    0,
+  );
+  const matchCount = visibleTree.reduce(
+    (sum, catalog) =>
+      sum
+      + (searching && matches(catalog) ? 1 : 0)
+      + catalog.schemas.reduce(
+        (inner, schema) =>
+          inner
+          + (searching && matches(schema) ? 1 : 0)
+          + (searching ? schema.children.filter(matches).length : 0),
+        0,
+      ),
     0,
   );
 
@@ -96,7 +120,12 @@ function AccessTree({ map }: { map: PermissionMap }) {
           </div>
           <div className="text-sm text-muted-foreground mt-1">
             <span className="font-medium text-foreground">{total.toLocaleString()}</span>
-            {' '}objects in <span className="font-mono">{map.catalog}</span>
+            {' '}objects
+            {map.catalog ? (
+              <> in <span className="font-mono">{map.catalog}</span></>
+            ) : (
+              <> across Unity Catalog</>
+            )}
           </div>
           {map.truncated && (
             <div className="mt-1 text-xs text-amber-700 dark:text-amber-300">
@@ -127,62 +156,67 @@ function AccessTree({ map }: { map: PermissionMap }) {
 
       {total === 0 ? (
         <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-          No effective Unity Catalog privileges found in this catalog for this identity.
+          No Unity Catalog privileges granted to this identity
+          {map.catalog ? ` in ${map.catalog}` : ''}.
         </div>
       ) : (
         <div role="tree" aria-label="Effective access" className="p-1">
-          <TreeRow
-            depth={0}
-            icon={<CatalogIcon className="size-4" />}
-            name={tree.catalog.name}
-            asset={tree.catalog.asset}
-            expandable
-            expanded={catalogOpen || searching}
-            detailsOpen={openDetails.has(tree.catalog.name)}
-            onToggle={() => setCatalogOpen((open) => !open)}
-            onToggleDetails={() => toggle(setOpenDetails, tree.catalog.name)}
-          />
-          {(catalogOpen || searching) && (
-            <>
-              {visibleSchemas.length === 0 && (
-                <TreeEmpty depth={1} label={searching ? 'No matching assets' : 'No schemas'} />
-              )}
-              {visibleSchemas.map((schema) => {
-                const schemaOpen = searching || openSchemas.has(schema.fullName);
-                return (
-                  <div key={schema.fullName} role="none">
-                    <TreeRow
-                      depth={1}
-                      icon={<SchemaIcon className="size-4" />}
-                      name={schema.name}
-                      asset={schema.asset}
-                      expandable={schema.children.length > 0}
-                      expanded={schemaOpen}
-                      childCount={schema.children.length}
-                      detailsOpen={openDetails.has(schema.fullName)}
-                      onToggle={() => toggle(setOpenSchemas, schema.fullName)}
-                      onToggleDetails={() => toggle(setOpenDetails, schema.fullName)}
-                    />
-                    {schemaOpen && schema.children.map((child) => (
+          {visibleTree.map((catalog) => {
+            const catalogOpen = searching || openCatalogs.has(catalog.name);
+            return (
+              <div key={catalog.name} role="none">
+                <TreeRow
+                  depth={0}
+                  icon={<CatalogIcon className="size-4" />}
+                  name={catalog.name}
+                  asset={catalog.asset}
+                  expandable={catalog.schemas.length > 0}
+                  expanded={catalogOpen}
+                  childCount={catalog.schemas.length}
+                  detailsOpen={openDetails.has(catalog.name)}
+                  onToggle={() => toggle(setOpenCatalogs, catalog.name)}
+                  onToggleDetails={() => toggle(setOpenDetails, catalog.name)}
+                />
+                {catalogOpen && catalog.schemas.length === 0 && (
+                  <TreeEmpty depth={1} label={searching ? 'No matching assets' : 'No schemas'} />
+                )}
+                {catalogOpen && catalog.schemas.map((schema) => {
+                  const schemaOpen = searching || openSchemas.has(schema.fullName);
+                  return (
+                    <div key={schema.fullName} role="none">
                       <TreeRow
-                        key={child.fullName}
-                        depth={2}
-                        icon={<LeafIcon asset={child} />}
-                        name={child.name}
-                        subtitle={leafSubtitle(child)}
-                        asset={child}
-                        expandable={false}
-                        expanded={false}
-                        detailsOpen={openDetails.has(child.fullName)}
-                        onToggle={() => toggle(setOpenDetails, child.fullName)}
-                        onToggleDetails={() => toggle(setOpenDetails, child.fullName)}
+                        depth={1}
+                        icon={<SchemaIcon className="size-4" />}
+                        name={schema.name}
+                        asset={schema.asset}
+                        expandable={schema.children.length > 0}
+                        expanded={schemaOpen}
+                        childCount={schema.children.length}
+                        detailsOpen={openDetails.has(schema.fullName)}
+                        onToggle={() => toggle(setOpenSchemas, schema.fullName)}
+                        onToggleDetails={() => toggle(setOpenDetails, schema.fullName)}
                       />
-                    ))}
-                  </div>
-                );
-              })}
-            </>
-          )}
+                      {schemaOpen && schema.children.map((child) => (
+                        <TreeRow
+                          key={child.fullName}
+                          depth={2}
+                          icon={<LeafIcon asset={child} />}
+                          name={child.name}
+                          subtitle={leafSubtitle(child)}
+                          asset={child}
+                          expandable={false}
+                          expanded={false}
+                          detailsOpen={openDetails.has(child.fullName)}
+                          onToggle={() => toggle(setOpenDetails, child.fullName)}
+                          onToggleDetails={() => toggle(setOpenDetails, child.fullName)}
+                        />
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -329,10 +363,19 @@ function leafSubtitle(asset: MappedAsset): string {
 
 const CATEGORY_RANK: Record<string, number> = { table: 0, volume: 1, function: 2 };
 
-function buildTree(map: PermissionMap): Tree {
-  const schemas = new Map<string, SchemaNode>();
-  const ensureSchema = (fullName: string): SchemaNode => {
-    let node = schemas.get(fullName);
+function buildTree(map: PermissionMap): CatalogNode[] {
+  const catalogs = new Map<string, CatalogNode>();
+  const ensureCatalog = (name: string): CatalogNode => {
+    let node = catalogs.get(name);
+    if (!node) {
+      node = { name, asset: null, schemas: [] };
+      catalogs.set(name, node);
+    }
+    return node;
+  };
+  const ensureSchema = (catalogName: string, fullName: string): SchemaNode => {
+    const catalog = ensureCatalog(catalogName);
+    let node = catalog.schemas.find((schema) => schema.fullName === fullName);
     if (!node) {
       node = {
         name: fullName.split('.')[1] ?? fullName,
@@ -340,31 +383,35 @@ function buildTree(map: PermissionMap): Tree {
         asset: null,
         children: [],
       };
-      schemas.set(fullName, node);
+      catalog.schemas.push(node);
     }
     return node;
   };
 
-  for (const schema of map.categories.schema) ensureSchema(schema.fullName).asset = schema;
+  for (const catalog of map.categories.catalog) ensureCatalog(catalog.name).asset = catalog;
+  for (const schema of map.categories.schema) {
+    ensureSchema(schema.fullName.split('.')[0] ?? map.catalog ?? schema.fullName, schema.fullName).asset =
+      schema;
+  }
   for (const leaf of [
     ...map.categories.table,
     ...map.categories.volume,
     ...map.categories.function,
   ]) {
-    const [catalog, schema] = leaf.fullName.split('.');
-    ensureSchema(`${catalog}.${schema}`).children.push(leaf);
+    const [catalogName, schemaName] = leaf.fullName.split('.');
+    ensureSchema(catalogName, `${catalogName}.${schemaName}`).children.push(leaf);
   }
 
-  for (const node of schemas.values()) {
-    node.children.sort(
-      (a, b) =>
-        (CATEGORY_RANK[a.category] ?? 9) - (CATEGORY_RANK[b.category] ?? 9)
-        || a.name.localeCompare(b.name),
-    );
+  const nodes = [...catalogs.values()].sort((a, b) => a.name.localeCompare(b.name));
+  for (const catalog of nodes) {
+    for (const schema of catalog.schemas) {
+      schema.children.sort(
+        (a, b) =>
+          (CATEGORY_RANK[a.category] ?? 9) - (CATEGORY_RANK[b.category] ?? 9)
+          || a.name.localeCompare(b.name),
+      );
+    }
+    catalog.schemas.sort((a, b) => a.name.localeCompare(b.name));
   }
-
-  return {
-    catalog: { name: map.catalog, asset: map.categories.catalog[0] ?? null },
-    schemas: [...schemas.values()].sort((a, b) => a.name.localeCompare(b.name)),
-  };
+  return nodes;
 }

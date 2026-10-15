@@ -39,8 +39,14 @@ export async function fetchGroupMembers(groupId: string): Promise<DirectoryIdent
   return payload.members ?? [];
 }
 
-export function fetchPermissionMap(catalog: string, principal: string): Promise<PermissionMap> {
-  const query = new URLSearchParams({ catalog, principal });
+export function fetchPermissionMap(
+  catalog: string | null,
+  principal: string,
+  kind?: IdentityKind,
+): Promise<PermissionMap> {
+  const query = new URLSearchParams({ principal });
+  if (catalog) query.set('catalog', catalog);
+  if (kind) query.set('kind', kind);
   return json(`/api/permissions/map?${query}`, '/api/permissions/map');
 }
 

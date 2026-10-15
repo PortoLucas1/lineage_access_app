@@ -42,11 +42,11 @@ export function criticalityTextColor(c: Criticality): string {
 export function assetTypeColor(type: string): string {
   switch (type) {
     case 'table':
-      return '#094074';
+      return 'var(--asset-table)';
     case 'materialized_view':
       return '#FE9000';
     case 'view':
-      return '#3C6997';
+      return 'var(--asset-view)';
     case 'dbsql_dashboard':
       return '#2E8B9E';
     case 'tableau_dashboard':

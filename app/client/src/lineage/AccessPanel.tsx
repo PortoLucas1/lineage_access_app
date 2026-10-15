@@ -2,8 +2,21 @@
  * Access panel (right rail) — every principal that can access the selected
  * asset. Header stat: "N principals can access this asset".
  */
-import { User, Users, Bot } from 'lucide-react';
+import { useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { User, Users, Bot, Info } from 'lucide-react';
 import type { AssetRow, GrantRow } from '@/shared/types';
+
+type ComparisonStatus = NonNullable<GrantRow['comparisonStatus']>;
+
+const COMPARISON_DESCRIPTIONS: Record<ComparisonStatus, string> = {
+  in_sync:
+    'Declared in Terraform and actually effective in Unity Catalog. Code and reality match.',
+  declared_only:
+    'Declared in Terraform but not effective in Unity Catalog. Usually the grant has not been applied yet or was revoked outside Terraform.',
+  effective_only:
+    'Effective in Unity Catalog but not declared in Terraform. Typically granted manually or inherited from a scope Terraform does not manage (e.g. the metastore).',
+};
 
 export function AccessPanel({
   asset,
@@ -97,11 +110,7 @@ function GrantRowItem({ grant }: { grant: GrantRow }) {
   );
 }
 
-function ComparisonBadge({
-  status,
-}: {
-  status: NonNullable<GrantRow['comparisonStatus']>;
-}) {
+function ComparisonBadge({ status }: { status: ComparisonStatus }) {
   const styles = {
     in_sync: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
     declared_only: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
@@ -113,8 +122,64 @@ function ComparisonBadge({
     effective_only: 'Effective only',
   };
   return (
-    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${styles[status]}`}>
-      {labels[status]}
+    <span className="inline-flex items-center gap-1">
+      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${styles[status]}`}>
+        {labels[status]}
+      </span>
+      <InfoBalloon label={labels[status]} description={COMPARISON_DESCRIPTIONS[status]} />
     </span>
+  );
+}
+
+const BALLOON_WIDTH = 240;
+
+/** Rendered in a portal so the scrolling access list can't clip it. */
+function InfoBalloon({ label, description }: { label: string; description: string }) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const balloonId = useId();
+
+  const open = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const margin = 8;
+    const centered = rect.left + rect.width / 2 - BALLOON_WIDTH / 2;
+    const left = Math.min(
+      Math.max(margin, centered),
+      window.innerWidth - BALLOON_WIDTH - margin,
+    );
+    setPosition({ top: rect.bottom + 6, left });
+  };
+  const close = () => setPosition(null);
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={`What does "${label}" mean?`}
+        aria-describedby={position ? balloonId : undefined}
+        onMouseEnter={open}
+        onMouseLeave={close}
+        onFocus={open}
+        onBlur={close}
+        className="inline-flex size-3.5 items-center justify-center rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        <Info className="size-3.5" />
+      </button>
+      {position
+        && createPortal(
+          <div
+            id={balloonId}
+            role="tooltip"
+            style={{ top: position.top, left: position.left, width: BALLOON_WIDTH }}
+            className="pointer-events-none fixed z-50 rounded-md border border-border bg-popover px-2.5 py-2 text-[11px] leading-snug text-popover-foreground shadow-md"
+          >
+            <div className="font-semibold mb-0.5">{label}</div>
+            {description}
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }

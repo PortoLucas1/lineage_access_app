@@ -79,6 +79,7 @@ import { registerAdminRoutes } from './routes/admin.js';
 import { registerChartRoutes } from './routes/charts.js';
 import { registerDevLogRoutes } from './routes/dev-log.js';
 import { registerUnityCatalogRoutes } from './routes/unity-catalog.js';
+import { registerPermissionRoutes } from './routes/permissions.js';
 
 // ============================================================================
 // Config
@@ -476,6 +477,7 @@ await createApp({
   }
   registerLineageRoutes(app, { db });
   registerUnityCatalogRoutes(app);
+  registerPermissionRoutes(app);
   registerActivityRoutes(app, { db });
   registerAdminRoutes(app, { db, data: appConfig.data });
 

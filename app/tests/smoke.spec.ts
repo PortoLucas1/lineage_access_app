@@ -60,6 +60,17 @@ test('smoke test - app loads lineage explorer', async ({ page }) => {
   await expect(page.getByText('Reset the demo with Lakebase Branching')).toHaveCount(0);
 });
 
+test('smoke test - permissions mapping lists identities', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto('/permissions');
+
+  await expect(page.getByRole('heading', { name: 'Select an identity' })).toBeVisible();
+  await expect(page.getByText('Load more').first()).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByText('Loading…')).toHaveCount(0, { timeout: 45_000 });
+  await expect(page.getByText("Couldn't load identities.")).toHaveCount(0);
+  await expect(page.getByText('required scopes: scim')).toHaveCount(0);
+});
+
 for (const [name, plugin] of enabledPages) {
   test(`smoke test - ${name} page loads`, async ({ page }) => {
     await page.goto(plugin.path);

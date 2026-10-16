@@ -43,8 +43,9 @@ export async function authHeaders(req: Request): Promise<Headers> {
  * Authenticate as the Databricks App service principal.
  *
  * Use this only for workspace APIs that do not support Apps OBO scopes, such
- * as Unity Catalog's effective-permissions endpoint. The caller remains
- * protected by the App's own authenticated route.
+ * as Unity Catalog's effective-permissions endpoint and workspace SCIM
+ * identity listing. The caller remains protected by the App's own
+ * authenticated route.
  */
 export async function appAuthHeaders(): Promise<Headers> {
   const h = new Headers();

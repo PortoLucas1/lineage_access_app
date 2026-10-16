@@ -55,6 +55,7 @@ export function LineageExplorerView() {
   const [kpis, setKpis] = useState<LineageKpis | null>(null);
   const [grants, setGrants] = useState<GrantRow[]>([]);
   const [grantsLoading, setGrantsLoading] = useState(false);
+  const [grantsError, setGrantsError] = useState<string | null>(null);
   const [selectedUcAsset, setSelectedUcAsset] = useState<UcAsset | null>(null);
   const [catalogOpen, setCatalogOpen] = useState(true);
   const [accessOpen, setAccessOpen] = useState(true);
@@ -128,9 +129,16 @@ export function LineageExplorerView() {
       setGrantsLoading(true);
       fetchAssetGrants(target)
         .then((g) => {
-          if (alive) setGrants(g);
+          if (!alive) return;
+          setGrants(g);
+          setGrantsError(null);
         })
-        .catch((e) => console.error('[lineage] grants load failed', e))
+        .catch((e: Error) => {
+          if (!alive) return;
+          console.error('[lineage] grants load failed', e);
+          setGrants([]);
+          setGrantsError(e.message);
+        })
         .finally(() => {
           if (alive) setGrantsLoading(false);
         });
@@ -192,6 +200,7 @@ export function LineageExplorerView() {
     setNeighborhood(null);
     setKpis(null);
     setGrants([]);
+    setGrantsError(null);
     setGrantsLoading(false);
     setSearchParams({ asset: asset.fullName }, { replace: true });
   };
@@ -335,6 +344,7 @@ export function LineageExplorerView() {
                 asset={selectedAsset}
                 grants={grants}
                 loading={grantsLoading}
+                error={grantsError}
                 onCollapse={() => setAccessOpen(false)}
               />
             )}

@@ -14,7 +14,13 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { Network } from 'lucide-react';
+import {
+  Maximize2,
+  Minimize2,
+  Network,
+  PanelLeftOpen,
+  PanelRightOpen,
+} from 'lucide-react';
 import {
   fetchAssets,
   fetchLineage,
@@ -49,7 +55,12 @@ export function LineageExplorerView() {
   const [kpis, setKpis] = useState<LineageKpis | null>(null);
   const [grants, setGrants] = useState<GrantRow[]>([]);
   const [grantsLoading, setGrantsLoading] = useState(false);
+  const [grantsError, setGrantsError] = useState<string | null>(null);
   const [selectedUcAsset, setSelectedUcAsset] = useState<UcAsset | null>(null);
+  const [catalogOpen, setCatalogOpen] = useState(true);
+  const [accessOpen, setAccessOpen] = useState(true);
+  const [focusMode, setFocusMode] = useState(false);
+  const [lineageDepth, setLineageDepth] = useState(3);
 
   // Load the Lakebase catalog for graph lookups. Only open a graph when the
   // URL names an asset or the user picks one in the browser.
@@ -93,7 +104,7 @@ export function LineageExplorerView() {
     if (!seedId) return;
     let alive = true;
     const load = () => {
-      Promise.all([fetchLineage(seedId, 3), fetchKpis(seedId)])
+      Promise.all([fetchLineage(seedId, lineageDepth), fetchKpis(seedId)])
         .then(([n, k]) => {
           if (!alive) return;
           setNeighborhood(n);
@@ -107,7 +118,7 @@ export function LineageExplorerView() {
       alive = false;
       unsub();
     };
-  }, [seedId]);
+  }, [seedId, lineageDepth]);
 
   // Load grants for the selected node (right rail), refetch on dataMutated.
   useEffect(() => {
@@ -118,9 +129,16 @@ export function LineageExplorerView() {
       setGrantsLoading(true);
       fetchAssetGrants(target)
         .then((g) => {
-          if (alive) setGrants(g);
+          if (!alive) return;
+          setGrants(g);
+          setGrantsError(null);
         })
-        .catch((e) => console.error('[lineage] grants load failed', e))
+        .catch((e: Error) => {
+          if (!alive) return;
+          console.error('[lineage] grants load failed', e);
+          setGrants([]);
+          setGrantsError(e.message);
+        })
         .finally(() => {
           if (alive) setGrantsLoading(false);
         });
@@ -182,6 +200,7 @@ export function LineageExplorerView() {
     setNeighborhood(null);
     setKpis(null);
     setGrants([]);
+    setGrantsError(null);
     setGrantsLoading(false);
     setSearchParams({ asset: asset.fullName }, { replace: true });
   };
@@ -191,17 +210,35 @@ export function LineageExplorerView() {
 
   return (
     <div className="h-full overflow-y-auto overflow-x-hidden">
-      <div className="grid w-full min-w-0 grid-cols-1 gap-4 px-4 py-5 lg:grid-cols-[260px_minmax(0,1fr)]">
-        <UcAssetBrowser
-          defaultCatalog={defaultCatalog}
-          defaultSchema={defaultSchema}
-          selectedFullName={selectedUcAsset?.fullName ?? null}
-          onSelect={onUcAssetSelect}
-        />
+      <div
+        className={`grid w-full min-w-0 grid-cols-1 gap-4 px-4 py-5 ${
+          !focusMode && catalogOpen ? 'lg:grid-cols-[260px_minmax(0,1fr)]' : ''
+        }`}
+      >
+        {!focusMode && catalogOpen ? (
+          <UcAssetBrowser
+            defaultCatalog={defaultCatalog}
+            defaultSchema={defaultSchema}
+            selectedFullName={selectedUcAsset?.fullName ?? null}
+            onSelect={onUcAssetSelect}
+            onCollapse={() => setCatalogOpen(false)}
+          />
+        ) : null}
 
         <div className="min-w-0 space-y-5">
-          <div>
+          {!focusMode && <div>
             <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              {!catalogOpen && (
+                <button
+                  type="button"
+                  onClick={() => setCatalogOpen(true)}
+                  className="rounded-md border border-border bg-card p-1.5 text-muted-foreground hover:text-foreground"
+                  title="Show Unity Catalog"
+                  aria-label="Show Unity Catalog"
+                >
+                  <PanelLeftOpen className="size-3.5" />
+                </button>
+              )}
               <Network className="size-3.5" />
               Lineage Explorer
             </div>
@@ -220,20 +257,71 @@ export function LineageExplorerView() {
                 {selectedUcAsset.fullName}
               </div>
             )}
-          </div>
+          </div>}
 
-          <KpiCards kpis={kpis} />
+          {!focusMode && <KpiCards kpis={kpis} />}
 
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(220px,260px)] gap-4 items-start min-w-0">
+          <div
+            className={`grid grid-cols-1 gap-4 items-start min-w-0 ${
+              !focusMode && accessOpen
+                ? 'lg:grid-cols-[minmax(0,1fr)_minmax(240px,280px)]'
+                : ''
+            }`}
+          >
             <div className="min-w-0 rounded-xl border border-border bg-card p-3">
               <div className="flex items-center justify-between px-1 pb-2">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-                  Lineage graph — upstream sources →{' '}
-                  {selectedUcAsset?.name ?? selectedAsset?.assetName ?? 'asset'} → downstream
-                  consumers
+                <div className="min-w-0">
+                  <div className="truncate text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                    Lineage graph — upstream →{' '}
+                    {selectedUcAsset?.name ?? selectedAsset?.assetName ?? 'asset'} → downstream
+                  </div>
+                  {focusMode && selectedUcAsset && (
+                    <div className="truncate font-mono text-[10px] text-muted-foreground">
+                      {selectedUcAsset.fullName}
+                    </div>
+                  )}
                 </div>
-                <div className="text-[10px] text-muted-foreground hidden sm:block">
-                  ⤢ shows object columns · an edge arrow shows column mappings
+                <div className="flex shrink-0 items-center gap-1">
+                  <div className="hidden items-center rounded-md border border-border bg-background p-0.5 sm:flex">
+                    <span className="px-1.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Hops
+                    </span>
+                    {[1, 2, 3].map((depth) => (
+                      <button
+                        key={depth}
+                        type="button"
+                        onClick={() => setLineageDepth(depth)}
+                        className={`rounded px-2 py-1 text-[10px] font-medium ${
+                          lineageDepth === depth
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        title={`${depth} lineage ${depth === 1 ? 'hop' : 'hops'}`}
+                      >
+                        {depth}
+                      </button>
+                    ))}
+                  </div>
+                  {!focusMode && !accessOpen && (
+                    <button
+                      type="button"
+                      onClick={() => setAccessOpen(true)}
+                      className="rounded-md border border-border bg-background p-1.5 text-muted-foreground hover:text-foreground"
+                      title="Show access panel"
+                      aria-label="Show access panel"
+                    >
+                      <PanelRightOpen className="size-3.5" />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setFocusMode((current) => !current)}
+                    className="rounded-md border border-border bg-background p-1.5 text-muted-foreground hover:text-foreground"
+                    title={focusMode ? 'Exit focus mode' : 'Focus graph'}
+                    aria-label={focusMode ? 'Exit focus mode' : 'Focus graph'}
+                  >
+                    {focusMode ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+                  </button>
                 </div>
               </div>
               {seedId && neighborhood ? (
@@ -243,6 +331,7 @@ export function LineageExplorerView() {
                   assets={neighborhood.assets}
                   edges={neighborhood.edges}
                   onSelect={onNodeSelect}
+                  focusMode={focusMode}
                 />
               ) : (
                 <div className="flex items-center justify-center h-[420px] px-8 text-center text-sm text-muted-foreground">
@@ -250,11 +339,15 @@ export function LineageExplorerView() {
                 </div>
               )}
             </div>
-            <AccessPanel
-              asset={selectedAsset}
-              grants={grants}
-              loading={grantsLoading}
-            />
+            {!focusMode && accessOpen && (
+              <AccessPanel
+                asset={selectedAsset}
+                grants={grants}
+                loading={grantsLoading}
+                error={grantsError}
+                onCollapse={() => setAccessOpen(false)}
+              />
+            )}
           </div>
         </div>
       </div>

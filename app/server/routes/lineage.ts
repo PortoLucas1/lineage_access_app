@@ -60,10 +60,16 @@ export function registerLineageRoutes(app: Application, deps: { db: AppDb }): vo
   });
 
   app.get('/api/assets/:id/grants', async (req, res) => {
-    const rows = isUcFullName(req.params.id)
-      ? await getUcGrantComparison(req, req.params.id)
-      : await getGrantsForAsset(db, req.params.id);
-    res.json(rows);
+    try {
+      const rows = isUcFullName(req.params.id)
+        ? await getUcGrantComparison(req, req.params.id)
+        : await getGrantsForAsset(db, req.params.id);
+      res.json(rows);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[lineage] grants lookup failed for ${req.params.id}: ${message}`);
+      res.status(502).json({ error: message });
+    }
   });
 
   app.get('/api/lineage/:id', async (req, res) => {

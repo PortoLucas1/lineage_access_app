@@ -4,7 +4,14 @@
  */
 import { useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { User, Users, Bot, Info } from 'lucide-react';
+import {
+  Bot,
+  ChevronRight,
+  Info,
+  PanelRightClose,
+  User,
+  Users,
+} from 'lucide-react';
 import type { AssetRow, GrantRow } from '@/shared/types';
 
 type ComparisonStatus = NonNullable<GrantRow['comparisonStatus']>;
@@ -22,10 +29,14 @@ export function AccessPanel({
   asset,
   grants,
   loading,
+  error,
+  onCollapse,
 }: {
   asset: AssetRow | null;
   grants: GrantRow[];
   loading: boolean;
+  error?: string | null;
+  onCollapse?: () => void;
 }) {
   const isComparison = grants.some((grant) => grant.comparisonStatus);
   const totalPrincipals = isComparison
@@ -36,11 +47,46 @@ export function AccessPanel({
       ).size
     : grants.reduce((sum, grant) => sum + (grant.effectivePrincipals || 0), 0);
 
+  const groups = [
+    {
+      key: 'direct',
+      label: 'Direct grants',
+      grants: grants.filter(
+        (grant) => grant.comparisonStatus !== 'declared_only' && !grant.inheritedFromName,
+      ),
+    },
+    {
+      key: 'inherited',
+      label: 'Inherited grants',
+      grants: grants.filter(
+        (grant) => grant.comparisonStatus !== 'declared_only' && Boolean(grant.inheritedFromName),
+      ),
+    },
+    {
+      key: 'declared',
+      label: 'Declared only',
+      grants: grants.filter((grant) => grant.comparisonStatus === 'declared_only'),
+    },
+  ].filter((group) => group.grants.length > 0);
+
   return (
     <div className="rounded-xl border border-border bg-card flex flex-col min-h-0 min-w-0">
       <div className="px-4 py-3 border-b border-border">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-          {isComparison ? 'Terraform vs effective' : 'Access panel'}
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+            {isComparison ? 'Terraform vs effective' : 'Access panel'}
+          </div>
+          {onCollapse && (
+            <button
+              type="button"
+              onClick={onCollapse}
+              className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              title="Collapse access panel"
+              aria-label="Collapse access panel"
+            >
+              <PanelRightClose className="size-3.5" />
+            </button>
+          )}
         </div>
         <div className="text-sm font-semibold text-foreground mt-0.5 truncate">
           {asset ? asset.assetName : 'Select an asset'}
@@ -57,18 +103,61 @@ export function AccessPanel({
         {loading && (
           <div className="px-4 py-6 text-sm text-muted-foreground text-center">Loading…</div>
         )}
-        {!loading && grants.length === 0 && (
+        {!loading && error && (
+          <div className="px-4 py-6 text-center">
+            <div className="text-sm font-medium text-destructive">Couldn&apos;t load permissions</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              Refresh the page or select the asset again.
+            </div>
+          </div>
+        )}
+        {!loading && !error && grants.length === 0 && (
           <div className="px-4 py-6 text-sm text-muted-foreground text-center">
             {asset ? 'No access grants recorded for this asset.' : 'Pick an asset to see who can access it.'}
           </div>
         )}
-        {!loading && grants.map((g) => <GrantRowItem key={g.id} grant={g} />)}
+        {!loading && !error && groups.map((group) => (
+          <GrantGroup
+            key={group.key}
+            label={group.label}
+            grants={group.grants}
+            defaultOpen={group.key !== 'declared'}
+          />
+        ))}
       </div>
     </div>
   );
 }
 
+function GrantGroup({
+  label,
+  grants,
+  defaultOpen,
+}: {
+  label: string;
+  grants: GrantRow[];
+  defaultOpen: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section>
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full items-center gap-1.5 bg-muted/40 px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground hover:bg-muted"
+        aria-expanded={open}
+      >
+        <ChevronRight className={`size-3 transition-transform ${open ? 'rotate-90' : ''}`} />
+        <span className="flex-1">{label}</span>
+        <span className="font-mono font-normal">{grants.length}</span>
+      </button>
+      {open && grants.map((grant) => <GrantRowItem key={grant.id} grant={grant} />)}
+    </section>
+  );
+}
+
 function GrantRowItem({ grant }: { grant: GrantRow }) {
+  const [open, setOpen] = useState(false);
   const Icon =
     grant.principalType === 'group'
       ? Users
@@ -76,8 +165,21 @@ function GrantRowItem({ grant }: { grant: GrantRow }) {
         ? Bot
         : User;
   return (
-    <div className="px-4 py-2.5">
-      <div className="flex items-start gap-2.5">
+    <div className="border-t border-border first:border-t-0">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setOpen((current) => !current)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setOpen((current) => !current);
+          }
+        }}
+        className="flex w-full items-start gap-2.5 px-3 py-2.5 text-left hover:bg-muted/50"
+        aria-expanded={open}
+      >
+        <ChevronRight className={`mt-1 size-3 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-90' : ''}`} />
         <div className="size-7 rounded-lg flex items-center justify-center shrink-0 bg-muted text-muted-foreground">
           <Icon className="size-3.5" />
         </div>
@@ -90,18 +192,21 @@ function GrantRowItem({ grant }: { grant: GrantRow }) {
           </div>
           <div className="text-xs text-muted-foreground mt-0.5">
             <span className="font-mono">{grant.privilege}</span>
-            {' · '}
-            {grant.principalType}
+            {' · '}{grant.principalType}
             {grant.principalType === 'group'
               && !grant.comparisonStatus
               && ` · ${grant.memberCount} members`}
             {grant.department ? ` · ${grant.department}` : ''}
           </div>
-          {grant.comparisonStatus && (
-            <div className="text-[11px] text-muted-foreground mt-1 break-words">
+          {open && (
+            <div className="mt-2 space-y-1 rounded-md bg-muted/50 px-2 py-1.5 text-[11px] text-muted-foreground">
+              <div><span className="font-medium text-foreground">Principal:</span> {grant.principal}</div>
+              {grant.comparisonStatus && <div className="break-words">
               {grant.comparisonStatus === 'declared_only'
                 ? `Declared at ${grant.declaredScope}`
                 : `Inherited from ${grant.inheritedFromType} ${grant.inheritedFromName}`}
+              </div>}
+              {grant.grantedBy && <div>Granted by {grant.grantedBy}</div>}
             </div>
           )}
         </div>

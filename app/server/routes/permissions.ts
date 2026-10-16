@@ -42,7 +42,6 @@ export function registerPermissionRoutes(app: Application): void {
     try {
       const kind = parseKind(req.query.kind);
       const page = await listIdentities(
-        req,
         kind,
         strParam(req.query.q),
         intParam(req.query.startIndex, 1),

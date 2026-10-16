@@ -118,7 +118,11 @@ function IdentitySection({
         {label}
         <span className="ml-1 font-normal">({total.toLocaleString()})</span>
       </div>
-      {error && <div className="px-4 pb-2 text-xs text-destructive">{error}</div>}
+      {error && (
+        <div className="px-4 pb-2 text-xs text-destructive" title={error}>
+          Couldn't load identities.
+        </div>
+      )}
       {identities.map((identity) => (
         <IdentityRow
           key={`${identity.kind}:${identity.id}`}

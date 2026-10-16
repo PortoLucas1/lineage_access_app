@@ -1,5 +1,5 @@
 import type { Request } from 'express';
-import { authHeaders } from '../lib/auth.js';
+import { appAuthHeaders, authHeaders } from '../lib/auth.js';
 import { workspaceHost } from '../lib/statement-execution.js';
 
 export type IdentityKind = 'group' | 'user' | 'service_principal';
@@ -44,7 +44,6 @@ const DEFAULT_COUNT = 25;
 const MAX_COUNT = 50;
 
 export async function listIdentities(
-  req: Request,
   kind: IdentityKind,
   search: string,
   startIndex: number,
@@ -59,7 +58,7 @@ export async function listIdentities(
   });
   if (filter) qs.set('filter', filter);
   const path = `${scimCollection(kind)}?${qs.toString()}`;
-  const body = await scimJson<ScimListResponse>(req, path);
+  const body = await scimJson<ScimListResponse>(path);
   return {
     identities: (body.Resources ?? []).map((row) => toIdentity(kind, row)),
     total: Number(body.totalResults ?? 0),
@@ -70,7 +69,7 @@ export async function listIdentities(
 
 export async function getIdentityCapabilities(req: Request): Promise<IdentityCapabilities> {
   try {
-    const page = await listIdentities(req, 'group', '', 1, 1);
+    const page = await listIdentities('group', '', 1, 1);
     const probe = page.identities[0];
     if (!probe) return { canReadGroupMembers: false };
     const result = await getGroupMembers(req, probe.id);
@@ -90,7 +89,7 @@ export async function getGroupMembers(
   const headers = await authHeaders(req);
   const response = await fetch(
     `${workspaceHost()}/api/2.0/preview/scim/v2/Groups/${groupId}`,
-    { headers },
+    { headers, signal: AbortSignal.timeout(30_000) },
   );
   if (response.status === 403) {
     return { members: [], canReadGroupMembers: false };
@@ -167,11 +166,14 @@ function toMember(member: NonNullable<ScimGroup['members']>[number]): DirectoryI
   return { id, kind: 'user', displayName, handle: displayName };
 }
 
-async function scimJson<T>(req: Request, path: string): Promise<T> {
-  const headers = await authHeaders(req);
-  const response = await fetch(`${workspaceHost()}${path}`, { headers });
+async function scimJson<T>(path: string): Promise<T> {
+  const headers = await appAuthHeaders();
+  const response = await fetch(`${workspaceHost()}${path}`, {
+    headers,
+    signal: AbortSignal.timeout(30_000),
+  });
   if (!response.ok) {
-    throw new Error(`SCIM ${path} returned ${response.status}: ${await response.text()}`);
+    throw new Error(`Could not list identities (${response.status})`);
   }
   return (await response.json()) as T;
 }

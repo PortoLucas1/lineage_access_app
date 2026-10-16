@@ -1,5 +1,5 @@
 import type { Request } from 'express';
-import { authHeaders } from '../lib/auth.js';
+import { appAuthHeaders } from '../lib/auth.js';
 import { executeStatement, sqlLiteral, workspaceHost } from '../lib/statement-execution.js';
 import {
   accessLevel,
@@ -84,7 +84,7 @@ export async function getPermissionMap(
   if (kind !== 'group') {
     const probeCatalog = catalogFilter ?? process.env.DATABRICKS_DEFAULT_CATALOG ?? 'porto_catalog';
     try {
-      const probed = await getEffective(req, 'catalog', probeCatalog, trimmedPrincipal);
+      const probed = await getEffective('catalog', probeCatalog, trimmedPrincipal);
       conveyedBy = probed.map((grant) => grant.conveyedBy);
       if (catalogFilter) effectiveCatalogGrants = probed;
     } catch (error) {
@@ -243,17 +243,19 @@ function inherit(
 }
 
 async function getEffective(
-  req: Request,
   securableType: string,
   fullName: string,
   principal: string,
 ): Promise<PrivilegeGrant[]> {
-  const headers = await authHeaders(req);
+  const headers = await appAuthHeaders();
   const url =
     `${workspaceHost()}/api/2.1/unity-catalog/effective-permissions/`
     + `${securableType}/${encodeURIComponent(fullName)}`
     + `?principal=${encodeURIComponent(principal)}`;
-  const response = await fetch(url, { headers });
+  const response = await fetch(url, {
+    headers,
+    signal: AbortSignal.timeout(15_000),
+  });
   if (!response.ok) {
     throw new Error(`Effective Permissions API returned ${response.status}: ${await response.text()}`);
   }

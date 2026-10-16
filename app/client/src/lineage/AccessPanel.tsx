@@ -29,11 +29,13 @@ export function AccessPanel({
   asset,
   grants,
   loading,
+  error,
   onCollapse,
 }: {
   asset: AssetRow | null;
   grants: GrantRow[];
   loading: boolean;
+  error?: string | null;
   onCollapse?: () => void;
 }) {
   const isComparison = grants.some((grant) => grant.comparisonStatus);
@@ -101,12 +103,20 @@ export function AccessPanel({
         {loading && (
           <div className="px-4 py-6 text-sm text-muted-foreground text-center">Loading…</div>
         )}
-        {!loading && grants.length === 0 && (
+        {!loading && error && (
+          <div className="px-4 py-6 text-center">
+            <div className="text-sm font-medium text-destructive">Couldn&apos;t load permissions</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              Refresh the page or select the asset again.
+            </div>
+          </div>
+        )}
+        {!loading && !error && grants.length === 0 && (
           <div className="px-4 py-6 text-sm text-muted-foreground text-center">
             {asset ? 'No access grants recorded for this asset.' : 'Pick an asset to see who can access it.'}
           </div>
         )}
-        {!loading && groups.map((group) => (
+        {!loading && !error && groups.map((group) => (
           <GrantGroup
             key={group.key}
             label={group.label}

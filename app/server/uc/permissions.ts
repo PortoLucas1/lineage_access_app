@@ -1,7 +1,7 @@
 import type { Request } from 'express';
 import declaredCatalogGrants from '../../config/declared-grants.json';
 import type { GrantRow } from '../db/queries/lineage.js';
-import { authHeaders } from '../lib/auth.js';
+import { appAuthHeaders } from '../lib/auth.js';
 import { workspaceHost } from '../lib/statement-execution.js';
 
 type EffectivePrivilege = {
@@ -28,16 +28,16 @@ const TABLE_PRIVILEGES = new Set([
 ]);
 
 export async function getUcGrantComparison(
-  req: Request,
+  _req: Request,
   assetId: string,
 ): Promise<GrantRow[]> {
   const catalog = assetId.split('.')[0];
   if (!catalog) throw new Error('Unity Catalog asset id must be catalog.schema.table');
 
-  const headers = await authHeaders(req);
+  const headers = await appAuthHeaders();
   const response = await fetch(
     `${workspaceHost()}/api/2.1/unity-catalog/effective-permissions/table/${encodeURIComponent(assetId)}`,
-    { headers },
+    { headers, signal: AbortSignal.timeout(15_000) },
   );
   if (!response.ok) {
     throw new Error(`Effective Permissions API returned ${response.status}: ${await response.text()}`);

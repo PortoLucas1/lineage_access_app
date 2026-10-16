@@ -36,6 +36,18 @@ export async function authHeaders(req: Request): Promise<Headers> {
     h.set('Authorization', `Bearer ${userToken}`);
     return h;
   }
+  return appAuthHeaders();
+}
+
+/**
+ * Authenticate as the Databricks App service principal.
+ *
+ * Use this only for workspace APIs that do not support Apps OBO scopes, such
+ * as Unity Catalog's effective-permissions endpoint. The caller remains
+ * protected by the App's own authenticated route.
+ */
+export async function appAuthHeaders(): Promise<Headers> {
+  const h = new Headers();
   const { client } = getExecutionContext();
   await client.config.authenticate(h);
   return h;

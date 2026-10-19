@@ -1,7 +1,6 @@
 /**
  * Lineage Explorer — the app's hero page.
  *
- *   KPI strip  (KpiCards)      — governed assets · new edges · blast radius $ · PII exposure
  *   Asset picker               — empty until the user picks a Unity Catalog asset
  *   Lineage graph (LineageGraph) — upstream sources → selected asset → downstream consumers.
  *     Clicking a node selects it without re-laying out the graph; picking an
@@ -10,7 +9,7 @@
  *     inline; edge arrow controls reveal mappings between endpoint columns.
  *   Access panel (AccessPanel) — every principal that can access the selected node.
  *
- * Refetches KPIs + neighborhood + grants on `dataMutated`.
+ * Refetches the neighborhood + grants on `dataMutated`.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
@@ -24,23 +23,25 @@ import {
 import {
   fetchAssets,
   fetchLineage,
-  fetchKpis,
   fetchAssetGrants,
 } from '@/lib/lineage';
 import type {
   AssetRow,
   GrantRow,
-  LineageKpis,
   LineageNeighborhood,
 } from '@/shared/types';
 import { dataMutated } from '@/lib/events';
 import { useSession } from '@/lib/api';
 import type { UcAsset } from '@/lib/unityCatalog';
-import { KpiCards } from './KpiCards';
 import { LineageGraph } from './LineageGraph';
 import { AccessPanel } from './AccessPanel';
 import { UcAssetBrowser } from './UcAssetBrowser';
 import { assetTypeLabel } from './assetVisuals';
+
+// Fixed lineage depth — the hop selector was removed from the toolbar in
+// favor of a sensible default that keeps graphs readable without exposing a
+// tuning knob the user has to think about.
+const LINEAGE_DEPTH = 3;
 
 export function LineageExplorerView() {
   const { config } = useSession();
@@ -52,7 +53,6 @@ export function LineageExplorerView() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const [neighborhood, setNeighborhood] = useState<LineageNeighborhood | null>(null);
-  const [kpis, setKpis] = useState<LineageKpis | null>(null);
   const [grants, setGrants] = useState<GrantRow[]>([]);
   const [grantsLoading, setGrantsLoading] = useState(false);
   const [grantsError, setGrantsError] = useState<string | null>(null);
@@ -60,7 +60,6 @@ export function LineageExplorerView() {
   const [catalogOpen, setCatalogOpen] = useState(true);
   const [accessOpen, setAccessOpen] = useState(true);
   const [focusMode, setFocusMode] = useState(false);
-  const [lineageDepth, setLineageDepth] = useState(3);
 
   // Load the Lakebase catalog for graph lookups. Only open a graph when the
   // URL names an asset or the user picks one in the browser.
@@ -99,16 +98,15 @@ export function LineageExplorerView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assetParam]);
 
-  // Load neighborhood + KPIs whenever the seed changes (and on dataMutated).
+  // Load the lineage neighborhood whenever the seed changes (and on dataMutated).
   useEffect(() => {
     if (!seedId) return;
     let alive = true;
     const load = () => {
-      Promise.all([fetchLineage(seedId, lineageDepth), fetchKpis(seedId)])
-        .then(([n, k]) => {
+      fetchLineage(seedId, LINEAGE_DEPTH)
+        .then((n) => {
           if (!alive) return;
           setNeighborhood(n);
-          setKpis(k);
         })
         .catch((e) => console.error('[lineage] neighborhood load failed', e));
     };
@@ -118,7 +116,7 @@ export function LineageExplorerView() {
       alive = false;
       unsub();
     };
-  }, [seedId, lineageDepth]);
+  }, [seedId]);
 
   // Load grants for the selected node (right rail), refetch on dataMutated.
   useEffect(() => {
@@ -198,7 +196,6 @@ export function LineageExplorerView() {
     setSeedId(asset.fullName);
     setSelectedId(asset.fullName);
     setNeighborhood(null);
-    setKpis(null);
     setGrants([]);
     setGrantsError(null);
     setGrantsLoading(false);
@@ -259,8 +256,6 @@ export function LineageExplorerView() {
             )}
           </div>}
 
-          {!focusMode && <KpiCards kpis={kpis} />}
-
           <div
             className={`grid grid-cols-1 gap-4 items-start min-w-0 ${
               !focusMode && accessOpen
@@ -282,26 +277,6 @@ export function LineageExplorerView() {
                   )}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
-                  <div className="hidden items-center rounded-md border border-border bg-background p-0.5 sm:flex">
-                    <span className="px-1.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Hops
-                    </span>
-                    {[1, 2, 3].map((depth) => (
-                      <button
-                        key={depth}
-                        type="button"
-                        onClick={() => setLineageDepth(depth)}
-                        className={`rounded px-2 py-1 text-[10px] font-medium ${
-                          lineageDepth === depth
-                            ? 'bg-primary text-primary-foreground'
-                            : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                        title={`${depth} lineage ${depth === 1 ? 'hop' : 'hops'}`}
-                      >
-                        {depth}
-                      </button>
-                    ))}
-                  </div>
                   {!focusMode && !accessOpen && (
                     <button
                       type="button"

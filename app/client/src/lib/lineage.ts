@@ -8,7 +8,6 @@ import type {
   AssetRow,
   ColumnLineage,
   GrantRow,
-  LineageKpis,
   LineageNeighborhood,
 } from '@/shared/types';
 
@@ -45,14 +44,6 @@ export async function fetchLineage(
   const res = await okOrThrow(
     await fetch(`/api/lineage/${encodeURIComponent(id)}?hops=${hops}`),
     `/api/lineage/${id}`,
-  );
-  return res.json();
-}
-
-export async function fetchKpis(id: string): Promise<LineageKpis> {
-  const res = await okOrThrow(
-    await fetch(`/api/lineage/${encodeURIComponent(id)}/kpis`),
-    `/api/lineage/${id}/kpis`,
   );
   return res.json();
 }

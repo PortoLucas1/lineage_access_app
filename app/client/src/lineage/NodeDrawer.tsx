@@ -77,18 +77,6 @@ export function NodeDrawer({
       >
         <SheetHeader className="px-6 pt-6 pb-4 border-b border-border">
           <div className="flex items-center gap-2 flex-wrap">
-            {(asset?.platform === 'Tableau'
-              || (asset?.biConnections ?? []).some((item) => item.kind === 'tableau_dashboard')) && (
-              <span className="rounded-full bg-[var(--accent)]/15 text-[var(--accent)] px-2 py-0.5 text-[10px] font-semibold">
-                Tableau
-              </span>
-            )}
-            {(asset?.assetType === 'dbsql_dashboard'
-              || (asset?.biConnections ?? []).some((item) => item.kind === 'dbsql_dashboard')) && (
-              <span className="rounded-full bg-sky-100 text-sky-800 px-2 py-0.5 text-[10px] font-semibold">
-                AI/BI
-              </span>
-            )}
             {asset?.hasPii && (
               <span className="rounded-full bg-[var(--destructive)]/12 text-destructive px-2 py-0.5 text-[10px] font-semibold">
                 PII

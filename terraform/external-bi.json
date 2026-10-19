@@ -1,0 +1,36 @@
+{
+  "entities": [
+    {
+      "id": "tableau-rides-operations",
+      "table": "*.rides",
+      "kind": "tableau_dashboard",
+      "externalMetadataName": "tableau_rides_operations",
+      "name": "Rides Operations",
+      "platform": "Tableau",
+      "systemType": "TABLEAU",
+      "entityType": "dashboard",
+      "url": "https://tableau.example.com/#/site/acme/views/RidesOperations/Overview",
+      "description": "Tableau dashboard that visualizes ride-level operational metrics sourced from the rides table. Registered in Unity Catalog as external lineage (see terraform/external_lineage.tf) so it appears natively in the lineage graph, the same way a Databricks dashboard would.",
+      "access": [
+        {
+          "principal": "maria.gonzalez@example-partners.com",
+          "role": "Viewer",
+          "grantedBy": "tableau-admin@example-partners.com",
+          "grantedDate": "2026-08-14"
+        },
+        {
+          "principal": "devon.oyelaran@example-partners.com",
+          "role": "Explorer",
+          "grantedBy": "tableau-admin@example-partners.com",
+          "grantedDate": "2026-08-14"
+        },
+        {
+          "principal": "tableau-site-admins",
+          "role": "Site Administrator",
+          "grantedBy": "tableau-admin@example-partners.com",
+          "grantedDate": "2026-07-01"
+        }
+      ]
+    }
+  ]
+}

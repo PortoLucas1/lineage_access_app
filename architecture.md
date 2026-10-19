@@ -1,4 +1,4 @@
-# Northpeak Retail — Lineage & Access Console · Architecture
+# Lineage & Access Console · Architecture
 
 This diagram matches the deployed solution: the Unity Catalog governance graph (asset lineage,
 downstream Tableau + workflow consumers, and access grants) is ingested into a governed Databricks

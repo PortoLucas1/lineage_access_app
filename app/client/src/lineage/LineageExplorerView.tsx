@@ -205,8 +205,8 @@ export function LineageExplorerView() {
     setSearchParams({ asset: asset.fullName }, { replace: true });
   };
 
-  const defaultCatalog = config?.ucExplorer.defaultCatalog ?? 'porto_catalog';
-  const defaultSchema = config?.ucExplorer.defaultSchema ?? 'dbdemos_pipeline_bike';
+  const defaultCatalog = config?.ucExplorer.defaultCatalog ?? '';
+  const defaultSchema = config?.ucExplorer.defaultSchema ?? '';
 
   return (
     <div className="h-full overflow-y-auto overflow-x-hidden">

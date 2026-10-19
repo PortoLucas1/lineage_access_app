@@ -26,6 +26,10 @@ import { fetchColumnLineage } from '@/lib/lineage';
 import type { AssetRow, ColumnLineage, ColumnRow, EdgeRow } from '@/shared/types';
 import { AssetTypeGlyph, assetTypeColor, assetTypeLabel } from './assetVisuals';
 
+function isBiConsumerType(type: string): boolean {
+  return ['dbsql_dashboard', 'tableau_dashboard', 'notebook', 'workflow'].includes(type);
+}
+
 const NODE_W = 208;
 const EXPANDED_NODE_W = 248;
 const NODE_HEADER_H = 62;
@@ -515,14 +519,37 @@ function Node({
         {truncate(path, 24)}
       </text>
 
-      {/* PII classification chip */}
+      {/* PII / BI classification chips */}
       <g transform={`translate(${node.width - 10}, 9)`}>
-        {node.hasPii && (
-          <Chip x={-34} label="PII" bg="#FDE2E2" fg="#B91C1C" />
-        )}
+        {(() => {
+          const connections = node.biConnections ?? [];
+          const chips: Array<{ label: string; bg: string; fg: string }> = [];
+          if (node.hasPii) chips.push({ label: 'PII', bg: '#FDE2E2', fg: '#B91C1C' });
+          if (
+            node.assetType === 'tableau_dashboard'
+            || connections.some((item) => item.kind === 'tableau_dashboard')
+          ) {
+            chips.push({ label: 'Tableau', bg: '#CCFBF1', fg: '#0F766E' });
+          }
+          if (
+            node.assetType === 'dbsql_dashboard'
+            || connections.some((item) => item.kind === 'dbsql_dashboard')
+          ) {
+            chips.push({ label: 'AI/BI', bg: '#E0F2FE', fg: '#0369A1' });
+          }
+          return chips.map((chip, index) => (
+            <Chip
+              key={chip.label}
+              x={-10 - chips.slice(index).reduce((sum, item) => sum + item.label.length * 6.2 + 16, 0)}
+              label={chip.label}
+              bg={chip.bg}
+              fg={chip.fg}
+            />
+          ));
+        })()}
       </g>
 
-      {/* Every generated object carries columns, including Tableau and AI/BI. */}
+      {!isBiConsumerType(node.assetType) && (
       <g
         transform={`translate(${node.width - 26}, ${NODE_HEADER_H - 26})`}
         style={{ cursor: 'pointer' }}
@@ -561,8 +588,9 @@ function Node({
           </div>
         </foreignObject>
       </g>
+      )}
 
-      {isExpanded && (
+      {!isBiConsumerType(node.assetType) && isExpanded && (
         <>
           <line
             x1={12}
@@ -662,7 +690,7 @@ function Chip({
   bg: string;
   fg: string;
 }) {
-  const w = 26;
+  const w = Math.max(26, label.length * 6.2 + 10);
   return (
     <g transform={`translate(${x}, 0)`}>
       <rect width={w} height={14} rx={7} fill={bg} />

@@ -1,9 +1,8 @@
 /*
- * Permission baseline for porto_catalog.dbdemos_pipeline_bike.
+ * Permission baseline for var.catalog_name.var.schema_name.
  *
- * Discovery on 2026-10-14 found no direct grants on the schema or any of its
- * 13 assets. Every effective asset grant is inherited from porto_catalog, so
- * reproducing the existing model means declaring the catalog grants below.
+ * The checked-in declared-grants.json is a sample capture. Replace it with
+ * grants from your catalog before enabling manage_catalog_grants.
  *
  * databricks_grant is authoritative only for one principal on one securable.
  * The safety flag keeps this reference configuration read-only by default.

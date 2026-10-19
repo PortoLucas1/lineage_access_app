@@ -33,7 +33,7 @@
   "keywords": [],
   "author": "",
   "license": "Unlicensed",
-  "description": "Chatbot + dashboard + user menu",
+  "description": "Lineage & Access Console — Unity Catalog lineage, BI consumers, and access mapping",
   "dependencies": {
     "@databricks/appkit": "0.41.6",
     "@databricks/sdk-experimental": "^0.14.2",

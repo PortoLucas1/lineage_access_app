@@ -1,10 +1,10 @@
 /*
- * Snapshot of the analysis target at discovery time. These locals are
- * documentation inputs, not resource declarations.
+ * Example snapshot of one analysis target. Replace target_assets when you
+ * point this module at a different schema. Locals are documentation only.
  */
 locals {
   target_full_name = "${var.catalog_name}.${var.schema_name}"
-  target_owner     = "lucas.porto@databricks.com"
+  target_owner     = var.catalog_owner
 
   target_assets = {
     bikes                                          = "MATERIALIZED_VIEW"
@@ -22,16 +22,9 @@ locals {
     weather_raw                                    = "STREAMING_TABLE"
   }
 
-  # No direct grants existed on the schema or any asset on 2026-10-14.
-  # The following principals can read target tables through catalog inheritance.
-  effective_asset_readers = {
-    "account users"                        = ["SELECT"]
-    "reza.shabani@databricks.com"          = ["SELECT"]
-    "e35c1305-3e62-4235-b215-5255a6386d4f" = ["SELECT"]
-    "wenwen.xie@databricks.com"            = ["ALL_PRIVILEGES"]
-    "yuki.shiga@databricks.com"            = ["ALL_PRIVILEGES"]
-    "57e7dc57-63b9-4114-a2ad-0a6226794a22" = ["ALL_PRIVILEGES", "MANAGE"]
-  }
+  # Replace with principals from your catalog. Live grants belong in
+  # declared-grants.json; this map is documentation only.
+  effective_asset_readers = jsondecode(file("${path.module}/declared-grants.json"))
 }
 
 output "analysis_target" {

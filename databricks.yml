@@ -1,4 +1,4 @@
-# Databricks Asset Bundle — Northpeak Retail Lineage & Access Console.
+# Databricks Asset Bundle — Lineage & Access Console.
 #
 # Re-creates the whole demo on ANY workspace: a UC schema, the synthetic
 # governance graph, an AI/BI dashboard, a Genie space, and the Lakebase-backed
@@ -82,14 +82,14 @@ resources:
     lineage_access_schema:
       name: ${var.schema}
       catalog_name: ${var.catalog}
-      comment: "Northpeak Retail governance graph — assets, lineage edges, access grants, plus column-level lineage for the revenue pipeline (gold_columns / gold_column_lineage)."
+      comment: "Governance graph — assets, lineage edges, access grants, plus column-level lineage (gold_columns / gold_column_lineage)."
 
   # ── Dashboard ───────────────────────────────────────────────────────────
   # dataset_catalog / dataset_schema rebind the embedded bare-table queries
   # per-target. Requires CLI v0.283.0+.
   dashboards:
     lineage_access_dashboard:
-      display_name: "[${bundle.target}] Northpeak Lineage & Access_b89e91"
+      display_name: "[${bundle.target}] Lineage & Access"
       file_path: ./src/dashboard/dashboard.json
       warehouse_id: ${var.warehouse_id}
       dataset_catalog: ${resources.schemas.lineage_access_schema.catalog_name}
@@ -99,7 +99,7 @@ resources:
   apps:
     lineage_access_app:
       name: ${var.app_name}
-      description: "Northpeak Lineage & Access Console — lineage graph explorer (click to focus, expand for column-level lineage) + access panel + Genie-backed remediation agent."
+      description: "Lineage & Access Console — lineage graph explorer (click to focus, expand for column-level lineage) + access panel + Genie-backed remediation agent."
       source_code_path: ./app
       lifecycle:
         prevent_destroy: true
@@ -128,7 +128,7 @@ resources:
   # ── Setup job — fills the shells after bundle deploy ────────────────────
   jobs:
     lineage_access_setup:
-      name: "[${bundle.target}] Northpeak Lineage & Access Setup"
+      name: "[${bundle.target}] Lineage & Access Setup"
       description: "generate data → deploy genie + grant app SP → export resolved IDs"
       tasks:
         - task_key: generate_data

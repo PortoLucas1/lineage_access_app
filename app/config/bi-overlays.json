@@ -1,0 +1,11 @@
+{
+  "consumers": [
+    {
+      "table": "*.rides",
+      "kind": "tableau_dashboard",
+      "id": "tableau-rides-operations",
+      "name": "Rides Operations",
+      "platform": "Tableau"
+    }
+  ]
+}

@@ -1,90 +1,77 @@
 # Unity Catalog permission baseline
 
-This directory is the Git-backed permission reference for the default analysis
-target:
+This Terraform module is a Git-backed permission reference for **your**
+catalog and schema. It does not assume a particular customer, workspace, or
+owner.
 
-```text
-porto_catalog.dbdemos_pipeline_bike
-```
+1. Copy `terraform.tfvars.example` to `terraform.tfvars`.
+2. Set `databricks_host`, `databricks_profile`, `catalog_name`, and `schema_name`.
+3. Replace `declared-grants.json` with a capture of **your** catalog grants.
+4. Run `terraform plan`. Grant writes stay off until you set `manage_catalog_grants=true`.
 
-It was captured from `e2-demo-field-eng` on 2026-10-14.
+The Lineage & Access Console reads the same `declared-grants.json` for drift
+comparison on the Permissions mapping page. The app can show the module path
+and catalog/schema you intend to plan against; that UI stores values in the
+browser only. Production still uses env vars:
 
-## What the inventory found
-
-- Catalog owner: `lucas.porto@databricks.com`
-- Schema owner: `lucas.porto@databricks.com`
-- 13 assets: 3 materialized views, 7 streaming tables, and 3 managed tables
-- No direct grants on the schema
-- No direct grants on any of the 13 assets
-- Every effective table permission is inherited from `porto_catalog`
-- Real table and column lineage exists in `system.access`
-
-Because Unity Catalog inheritance is the source of the effective permissions,
-`permissions.tf` models the existing grants on `porto_catalog`, using
-`declared-grants.json` as the shared manifest consumed by the app's drift
-comparison. Adding duplicate schema or table grants would not mirror the current
-permission design.
+| Env var | Purpose |
+|---|---|
+| `TERRAFORM_MODULE_PATH` | Relative path to this directory (default `terraform`) |
+| `TERRAFORM_CATALOG` | Catalog Terraform should manage (falls back to `DEMO_CATALOG`) |
+| `TERRAFORM_SCHEMA` | Schema Terraform should document (falls back to `DEMO_SCHEMA`) |
 
 ## Safety model
-
-The reference is read-only by default:
 
 ```hcl
 manage_catalog_grants = false
 ```
 
-With that default, `terraform plan` reads the target catalog/schema and creates
-no grant resources. This is intentional: catalog grants affect every current
-and future object in the catalog, not only `dbdemos_pipeline_bike`.
+With that default, `terraform plan` reads catalog/schema metadata and creates
+no grant resources. Catalog grants affect every current and future object in
+the catalog, not only one schema.
 
 `databricks_grant` is authoritative for one principal on one catalog. Enabling
-the gate imports each existing principal/catalog pair and then manages the
-privilege list captured in `declared-grants.json`.
-
-Do not enable or apply the grant resources without reviewing the plan:
+the gate imports each principal/catalog pair in `declared-grants.json`.
 
 ```bash
+cp terraform.tfvars.example terraform.tfvars
+# edit terraform.tfvars
+
 terraform init
 terraform fmt -check
 terraform validate
 
-# Review-only: this reads metadata and proposes no grant changes.
-terraform plan
+# Review-only: reads metadata, proposes no grant changes.
+terraform -chdir=terraform plan
 
 # Explicitly gated: review this plan carefully; do not apply automatically.
-terraform plan -var='manage_catalog_grants=true'
+terraform -chdir=terraform plan -var='manage_catalog_grants=true'
 ```
 
-Authentication uses the `e2-demo-west` Databricks CLI profile by default. No
-tokens or secrets belong in this directory.
+Do not commit tokens, `.tfvars` with real hosts, or `*.tfstate`.
 
 ## Refreshing the baseline
 
 Read direct grants at their actual inheritance level:
 
 ```bash
-databricks grants get CATALOG porto_catalog \
-  --max-results 0 --profile e2-demo-west -o json
-
-databricks grants get SCHEMA porto_catalog.dbdemos_pipeline_bike \
-  --max-results 0 --profile e2-demo-west -o json
+databricks grants get CATALOG <catalog> --max-results 0 -o json
+databricks grants get SCHEMA <catalog>.<schema> --max-results 0 -o json
 ```
 
-For each asset, verify that direct grants remain empty:
+For each table, verify whether direct grants exist:
 
 ```bash
-databricks grants get TABLE \
-  porto_catalog.dbdemos_pipeline_bike.<asset> \
-  --max-results 0 --profile e2-demo-west -o json
+databricks grants get TABLE <catalog>.<schema>.<table> --max-results 0 -o json
 ```
 
 Use `get-effective` to see inherited access:
 
 ```bash
-databricks grants get-effective TABLE \
-  porto_catalog.dbdemos_pipeline_bike.bikes \
-  --max-results 0 --profile e2-demo-west -o json
+databricks grants get-effective TABLE <catalog>.<schema>.<table> --max-results 0 -o json
 ```
 
 Ownership and metastore-inherited `READ_METADATA` are not grant resources in
-this configuration.
+this configuration. `inventory.tf` is a documentation snapshot of the objects
+present when the baseline was last captured — replace `target_assets` when you
+point the module at a different schema.

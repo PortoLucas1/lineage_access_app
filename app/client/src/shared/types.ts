@@ -2,11 +2,18 @@
  * Types that cross the client/server boundary. Keep in sync with
  * server/db/queries/lineage.ts.
  *
- * Domain: Northpeak Lineage & Access Console — the governance graph
+ * Shared types for the Lineage & Access Console
  * (assets + lineage edges + access grants).
  */
 
 export type GrantStatus = 'active' | 'flagged_for_review';
+
+export type BiConnection = {
+  kind: 'dbsql_dashboard' | 'tableau_dashboard' | 'notebook' | 'workflow';
+  id: string;
+  name: string;
+  platform: string;
+};
 
 export type AssetRow = {
   id: string;
@@ -24,6 +31,7 @@ export type AssetRow = {
   downstreamCount: number;
   principalsWithAccess: number;
   hasOverBroadGrant: boolean;
+  biConnections?: BiConnection[];
 };
 
 export type EdgeRow = {

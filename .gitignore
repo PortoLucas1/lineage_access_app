@@ -10,6 +10,7 @@ __pycache__/
 !.env.template
 .databrickscfg
 .terraform/
+terraform.tfvars
 *.tfstate
 *.tfstate.*
 *.tfplan

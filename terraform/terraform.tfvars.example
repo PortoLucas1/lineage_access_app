@@ -1,0 +1,11 @@
+# Copy to terraform.tfvars (gitignored) and fill in your workspace.
+
+databricks_host    = "https://your-workspace.cloud.databricks.com"
+databricks_profile = "DEFAULT"
+catalog_name       = "your_catalog"
+schema_name        = "your_schema"
+catalog_owner      = "data-platform@example.com"
+
+# Leave false unless you have reviewed the plan and want Terraform to
+# become authoritative for the principals in declared-grants.json.
+manage_catalog_grants = false

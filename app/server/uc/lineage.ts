@@ -1,5 +1,6 @@
 import type { Request } from 'express';
 import { executeStatement, sqlLiteral } from '../lib/statement-execution.js';
+import { attachBiConsumers } from './bi-consumers.js';
 import type {
   AssetRow,
   ColumnLineage,
@@ -115,14 +116,15 @@ export async function getUcLineageNeighborhood(
       ...asset,
       downstreamCount: directDownstream.get(id) ?? 0,
       lastRefreshed: latestByAsset.get(id) ?? asset.lastRefreshed,
+      biConnections: [],
     };
   });
 
-  return {
+  return attachBiConsumers(req, {
     seed: assets.find((asset) => asset.id === seedId) ?? null,
     assets,
     edges,
-  };
+  });
 }
 
 export async function getUcKpis(
@@ -261,6 +263,7 @@ function assetFromMetadata(row: unknown[]): AssetRow {
     downstreamCount: 0,
     principalsWithAccess: 0,
     hasOverBroadGrant: false,
+    biConnections: [],
   };
 }
 

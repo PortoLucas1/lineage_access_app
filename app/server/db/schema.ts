@@ -13,7 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 /**
- * Lakebase schema, under `app.*` — Northpeak Lineage & Access Console.
+ * Lakebase schema, under `app.*` — Lineage & Access Console.
  *
  * Three groups:
  *   1. Chat state      (conversations, messages, feedback) — REUSED AS-IS.

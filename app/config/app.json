@@ -50,24 +50,31 @@
   },
 
   "ucExplorer": {
-    "defaultCatalog": "porto_catalog",
-    "defaultSchema": "dbdemos_pipeline_bike"
+    "defaultCatalog": "${DEMO_CATALOG:}",
+    "defaultSchema": "${DEMO_SCHEMA:}"
+  },
+
+  "terraformBaseline": {
+    "modulePath": "${TERRAFORM_MODULE_PATH:terraform}",
+    "catalog": "${TERRAFORM_CATALOG:}",
+    "schema": "${TERRAFORM_SCHEMA:}",
+    "manifest": "terraform/declared-grants.json"
   },
 
   // Surfaces in dock header + page titles.
   "branding": {
-    "appName": "Northpeak Lineage & Access Console"
+    "appName": "Lineage & Access Console"
   },
 
   // Dock's "Suggested next" chip walks this list. Step N unlocks once the
   // previous assistant message contains any triggerAfter[] substring.
   "assistantScript": [
     {
-      "prompt": "What feeds the Executive Revenue dashboard, and who can access those tables?"
+      "prompt": "What feeds this table, and who can access it?"
     },
     {
-      "prompt": "Who can access customer_pii?",
-      "triggerAfter": ["access", "grant", "pipeline", "customer_pii"]
+      "prompt": "Which dashboards consume the selected table?",
+      "triggerAfter": ["access", "grant", "lineage", "dashboard"]
     }
   ]
 }

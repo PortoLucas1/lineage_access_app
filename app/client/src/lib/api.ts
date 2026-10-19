@@ -104,6 +104,13 @@ export type ScriptStep = {
   triggerAfter?: string[];
 };
 
+export type TerraformBaseline = {
+  modulePath: string;
+  catalog: string;
+  schema: string;
+  manifest: string;
+};
+
 type AppConfig = {
   /** Pinned MLflow experiment id, used by AppHeader's "Experiment" link. */
   mlflowExperimentId: string | null;
@@ -116,6 +123,7 @@ type AppConfig = {
     defaultCatalog: string;
     defaultSchema: string;
   };
+  terraformBaseline?: TerraformBaseline;
   assistantScript: ScriptStep[];
 };
 

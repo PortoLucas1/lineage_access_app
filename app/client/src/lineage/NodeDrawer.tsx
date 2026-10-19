@@ -77,9 +77,16 @@ export function NodeDrawer({
       >
         <SheetHeader className="px-6 pt-6 pb-4 border-b border-border">
           <div className="flex items-center gap-2 flex-wrap">
-            {asset?.platform === 'Tableau' && (
+            {(asset?.platform === 'Tableau'
+              || (asset?.biConnections ?? []).some((item) => item.kind === 'tableau_dashboard')) && (
               <span className="rounded-full bg-[var(--accent)]/15 text-[var(--accent)] px-2 py-0.5 text-[10px] font-semibold">
                 Tableau
+              </span>
+            )}
+            {(asset?.assetType === 'dbsql_dashboard'
+              || (asset?.biConnections ?? []).some((item) => item.kind === 'dbsql_dashboard')) && (
+              <span className="rounded-full bg-sky-100 text-sky-800 px-2 py-0.5 text-[10px] font-semibold">
+                AI/BI
               </span>
             )}
             {asset?.hasPii && (
@@ -137,6 +144,26 @@ export function NodeDrawer({
                 <Field label="Created" value={asset.createdDate ?? '—'} />
                 <Field label="Last refreshed" value={asset.lastRefreshed ?? '—'} />
               </dl>
+              {(asset.biConnections ?? []).length > 0 && (
+                <div className="mt-5">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    BI consumers
+                  </div>
+                  <ul className="mt-2 space-y-2">
+                    {(asset.biConnections ?? []).map((item) => (
+                      <li
+                        key={`${item.kind}:${item.id}`}
+                        className="rounded-md border border-border px-3 py-2 text-sm"
+                      >
+                        <div className="font-medium text-foreground">{item.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {assetTypeLabel(item.kind)} · {item.platform}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="access" className="flex-1 overflow-y-auto px-6 py-4">

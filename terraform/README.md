@@ -75,3 +75,33 @@ Ownership and metastore-inherited `READ_METADATA` are not grant resources in
 this configuration. `inventory.tf` is a documentation snapshot of the objects
 present when the baseline was last captured — replace `target_assets` when you
 point the module at a different schema.
+
+## External BI lineage (Tableau, ...)
+
+`external-bi.json` declares tables consumed by BI tools outside Databricks
+(Tableau, Power BI, ...) plus who can see each one — see `external_lineage.tf`.
+This uses the same safety-gate pattern as grants, but mutates via a script
+instead of a provider resource, because the Databricks Terraform provider has
+no resource for Unity Catalog's External Lineage API yet (Public Preview):
+
+```hcl
+manage_external_lineage = false
+```
+
+With that default, `terraform apply` does nothing for this file. Setting it to
+`true` runs `../app/scripts/register_external_lineage.py` via `local-exec`,
+which creates (idempotently — safe to re-run) an External Metadata object and
+an External Lineage relationship in Unity Catalog for each entry. You can also
+run that script directly without touching Terraform at all:
+
+```bash
+python3 ../app/scripts/register_external_lineage.py \
+  --catalog <catalog> --schema <schema> --profile <cli-profile>
+```
+
+The `access` list inside each entity (who can see that BI tool's dashboard) is
+never pushed anywhere — Unity Catalog doesn't model permissions for an
+external tool's own users. The Lineage & Access Console reads it directly from
+`external-bi.json` (synced to `app/config/external-bi.json`) to show it in the
+access panel as declared/simulated knowledge, the same way `declared-grants.json`
+backs the Terraform-vs-effective comparison for catalog grants.

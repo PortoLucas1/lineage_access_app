@@ -1,18 +1,26 @@
 /**
  * Access panel (right rail) — every principal that can access the selected
  * asset. Header stat: "N principals can access this asset".
+ *
+ * Built to stay usable when an account has 1k+ identities: a search box
+ * filters the (already-fetched) grant list by principal/privilege/department,
+ * and rendering is capped to a page at a time with a "Load more" button so we
+ * never mount thousands of rows at once.
  */
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Bot,
   ChevronRight,
   Info,
   PanelRightClose,
+  Search,
   User,
   Users,
 } from 'lucide-react';
 import type { AssetRow, GrantRow } from '@/shared/types';
+
+const PAGE_SIZE = 50;
 
 type ComparisonStatus = NonNullable<GrantRow['comparisonStatus']>;
 
@@ -38,6 +46,16 @@ export function AccessPanel({
   error?: string | null;
   onCollapse?: () => void;
 }) {
+  const [search, setSearch] = useState('');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // Reset paging (and clear any stale search) whenever the selected asset's
+  // grant set changes, so switching assets never shows a half-scrolled,
+  // filtered-out view of the previous one.
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [asset?.id]);
+
   const isComparison = grants.some((grant) => grant.comparisonStatus);
   const totalPrincipals = isComparison
     ? new Set(
@@ -47,27 +65,58 @@ export function AccessPanel({
       ).size
     : grants.reduce((sum, grant) => sum + (grant.effectivePrincipals || 0), 0);
 
-  const groups = [
+  const needle = search.trim().toLowerCase();
+  const filteredGrants = useMemo(() => {
+    if (!needle) return grants;
+    return grants.filter((grant) => {
+      const haystack = [
+        grant.principal,
+        grant.displayName,
+        grant.privilege,
+        grant.department,
+        grant.principalType,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(needle);
+    });
+  }, [grants, needle]);
+
+  // Cap how many filtered grants are actually mounted so a 1k+-identity
+  // account never renders thousands of rows at once; "Load more" reveals the
+  // rest PAGE_SIZE at a time. Group *totals* (the counter next to each
+  // section header) are computed from the full filtered set so they don't
+  // visibly shrink/grow as more pages load — only the rendered rows are capped.
+  const visibleGrants = filteredGrants.slice(0, visibleCount);
+  const hasMore = visibleGrants.length < filteredGrants.length;
+
+  const groupDefs = [
     {
       key: 'direct',
       label: 'Direct grants',
-      grants: grants.filter(
-        (grant) => grant.comparisonStatus !== 'declared_only' && !grant.inheritedFromName,
-      ),
+      match: (grant: GrantRow) => grant.comparisonStatus !== 'declared_only' && !grant.inheritedFromName,
     },
     {
       key: 'inherited',
       label: 'Inherited grants',
-      grants: grants.filter(
-        (grant) => grant.comparisonStatus !== 'declared_only' && Boolean(grant.inheritedFromName),
-      ),
+      match: (grant: GrantRow) =>
+        grant.comparisonStatus !== 'declared_only' && Boolean(grant.inheritedFromName),
     },
     {
       key: 'declared',
       label: 'Declared only',
-      grants: grants.filter((grant) => grant.comparisonStatus === 'declared_only'),
+      match: (grant: GrantRow) => grant.comparisonStatus === 'declared_only',
     },
-  ].filter((group) => group.grants.length > 0);
+  ];
+  const groups = groupDefs
+    .map((def) => ({
+      key: def.key,
+      label: def.label,
+      total: filteredGrants.filter(def.match).length,
+      grants: visibleGrants.filter(def.match),
+    }))
+    .filter((group) => group.total > 0);
 
   return (
     <div className="rounded-xl border border-border bg-card flex flex-col min-h-0 min-w-0">
@@ -97,6 +146,20 @@ export function AccessPanel({
             effective principals can access this asset
           </div>
         )}
+        {asset && grants.length > 0 && (
+          <label className="mt-2 flex items-center gap-2 rounded-md border border-border bg-background px-2 py-1.5">
+            <Search className="size-3.5 text-muted-foreground shrink-0" />
+            <input
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setVisibleCount(PAGE_SIZE);
+              }}
+              placeholder="Search principal, privilege, department…"
+              className="w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+            />
+          </label>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto divide-y divide-border max-h-[520px]">
@@ -116,14 +179,29 @@ export function AccessPanel({
             {asset ? 'No access grants recorded for this asset.' : 'Pick an asset to see who can access it.'}
           </div>
         )}
+        {!loading && !error && grants.length > 0 && filteredGrants.length === 0 && (
+          <div className="px-4 py-6 text-sm text-muted-foreground text-center">
+            No principals match &quot;{search.trim()}&quot;.
+          </div>
+        )}
         {!loading && !error && groups.map((group) => (
           <GrantGroup
             key={group.key}
             label={group.label}
+            total={group.total}
             grants={group.grants}
             defaultOpen={group.key !== 'declared'}
           />
         ))}
+        {!loading && !error && hasMore && (
+          <button
+            type="button"
+            onClick={() => setVisibleCount((current) => current + PAGE_SIZE)}
+            className="w-full px-4 py-2.5 text-left text-xs font-medium text-primary hover:bg-muted"
+          >
+            Load more ({(filteredGrants.length - visibleGrants.length).toLocaleString()} more)
+          </button>
+        )}
       </div>
     </div>
   );
@@ -131,10 +209,12 @@ export function AccessPanel({
 
 function GrantGroup({
   label,
+  total,
   grants,
   defaultOpen,
 }: {
   label: string;
+  total: number;
   grants: GrantRow[];
   defaultOpen: boolean;
 }) {
@@ -149,7 +229,7 @@ function GrantGroup({
       >
         <ChevronRight className={`size-3 transition-transform ${open ? 'rotate-90' : ''}`} />
         <span className="flex-1">{label}</span>
-        <span className="font-mono font-normal">{grants.length}</span>
+        <span className="font-mono font-normal">{total.toLocaleString()}</span>
       </button>
       {open && grants.map((grant) => <GrantRowItem key={grant.id} grant={grant} />)}
     </section>
@@ -201,11 +281,14 @@ function GrantRowItem({ grant }: { grant: GrantRow }) {
           {open && (
             <div className="mt-2 space-y-1 rounded-md bg-muted/50 px-2 py-1.5 text-[11px] text-muted-foreground">
               <div><span className="font-medium text-foreground">Principal:</span> {grant.principal}</div>
-              {grant.comparisonStatus && <div className="break-words">
-              {grant.comparisonStatus === 'declared_only'
-                ? `Declared at ${grant.declaredScope}`
-                : `Inherited from ${grant.inheritedFromType} ${grant.inheritedFromName}`}
-              </div>}
+              {grant.comparisonStatus === 'declared_only' && grant.declaredScope && (
+                <div className="break-words">Declared at {grant.declaredScope}</div>
+              )}
+              {grant.inheritedFromName && (
+                <div className="break-words">
+                  Inherited from {grant.inheritedFromType} {grant.inheritedFromName}
+                </div>
+              )}
               {grant.grantedBy && <div>Granted by {grant.grantedBy}</div>}
             </div>
           )}

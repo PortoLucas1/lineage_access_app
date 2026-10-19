@@ -217,6 +217,18 @@ export function LineageGraph({
           <LocateFixed className="size-3.5" />
         </button>
       </div>
+      {edges.some((e) => e.isNewFromMv) && (
+        <div className="absolute bottom-2 left-2 z-10 flex items-center gap-3 rounded-md border border-border bg-card/95 px-2.5 py-1.5 text-[10px] text-muted-foreground shadow-sm backdrop-blur">
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block size-2 rounded-full" style={{ backgroundColor: EDGE_NEW }} />
+            New edge (last 30d)
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block size-2 rounded-full" style={{ backgroundColor: EDGE_BASE }} />
+            Baseline
+          </span>
+        </div>
+      )}
       <svg
         width="100%"
         height="100%"
@@ -519,35 +531,12 @@ function Node({
         {truncate(path, 24)}
       </text>
 
-      {/* PII / BI classification chips */}
-      <g transform={`translate(${node.width - 10}, 9)`}>
-        {(() => {
-          const connections = node.biConnections ?? [];
-          const chips: Array<{ label: string; bg: string; fg: string }> = [];
-          if (node.hasPii) chips.push({ label: 'PII', bg: '#FDE2E2', fg: '#B91C1C' });
-          if (
-            node.assetType === 'tableau_dashboard'
-            || connections.some((item) => item.kind === 'tableau_dashboard')
-          ) {
-            chips.push({ label: 'Tableau', bg: '#CCFBF1', fg: '#0F766E' });
-          }
-          if (
-            node.assetType === 'dbsql_dashboard'
-            || connections.some((item) => item.kind === 'dbsql_dashboard')
-          ) {
-            chips.push({ label: 'AI/BI', bg: '#E0F2FE', fg: '#0369A1' });
-          }
-          return chips.map((chip, index) => (
-            <Chip
-              key={chip.label}
-              x={-10 - chips.slice(index).reduce((sum, item) => sum + item.label.length * 6.2 + 16, 0)}
-              label={chip.label}
-              bg={chip.bg}
-              fg={chip.fg}
-            />
-          ));
-        })()}
-      </g>
+      {/* PII classification chip */}
+      {node.hasPii && (
+        <g transform={`translate(${node.width - 10}, 9)`}>
+          <Chip x={-36} label="PII" bg="#FDE2E2" fg="#B91C1C" />
+        </g>
+      )}
 
       {!isBiConsumerType(node.assetType) && (
       <g

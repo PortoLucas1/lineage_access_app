@@ -16,7 +16,7 @@ import {
   isUcFullName,
 } from '../uc/lineage.js';
 import { getUcGrantComparison } from '../uc/permissions.js';
-import { getCachedBiAsset, isBiAssetId } from '../uc/bi-consumers.js';
+import { getBiAssetGrants, getCachedBiAsset, isBiAssetId } from '../uc/bi-consumers.js';
 
 /**
  * Lineage & Access read routes — drive the Lineage Explorer page.
@@ -65,7 +65,7 @@ export function registerLineageRoutes(app: Application, deps: { db: AppDb }): vo
   app.get('/api/assets/:id/grants', async (req, res) => {
     try {
       if (isBiAssetId(req.params.id)) {
-        res.json([]);
+        res.json(await getBiAssetGrants(req, req.params.id));
         return;
       }
       const rows = isUcFullName(req.params.id)

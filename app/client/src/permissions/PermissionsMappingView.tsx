@@ -7,11 +7,12 @@ import { fetchIdentityCapabilities, fetchPermissionMap } from '@/lib/permissions
 import type { DirectoryIdentity, PermissionMap } from '@/shared/types';
 import { IdentityBrowser } from './IdentityBrowser';
 import { AssetAccessPanel } from './AssetAccessPanel';
+import { TerraformBaselineCard } from './TerraformBaselineCard';
 
 export function PermissionsMappingView() {
   const { config } = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
-  const defaultCatalog = config?.ucExplorer.defaultCatalog ?? 'porto_catalog';
+  const defaultCatalog = config?.ucExplorer.defaultCatalog ?? '';
   const catalog = searchParams.get('catalog');
   const selected = selectedFromParams(searchParams);
 
@@ -123,6 +124,7 @@ export function PermissionsMappingView() {
             </label>
           </div>
           <AssetAccessPanel map={map} loading={loading} error={error} />
+          <TerraformBaselineCard baseline={config?.terraformBaseline} />
         </div>
       </div>
     </div>

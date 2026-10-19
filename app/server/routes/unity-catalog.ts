@@ -1,8 +1,8 @@
 import type { Application, Response } from 'express';
 import { executeStatement, sqlLiteral } from '../lib/statement-execution.js';
 
-const DEFAULT_CATALOG = 'porto_catalog';
-const DEFAULT_SCHEMA = 'dbdemos_pipeline_bike';
+const DEFAULT_CATALOG = process.env.DEMO_CATALOG || process.env.DATABRICKS_DEFAULT_CATALOG || '';
+const DEFAULT_SCHEMA = process.env.DEMO_SCHEMA || '';
 const IDENTIFIER = /^[A-Za-z0-9_-]+$/;
 
 function strParam(value: unknown): string {
@@ -32,7 +32,7 @@ export function registerUnityCatalogRoutes(app: Application): void {
         `SELECT catalog_name, catalog_owner, comment
            FROM system.information_schema.catalogs
            ${where}
-          ORDER BY CASE WHEN catalog_name = '${DEFAULT_CATALOG}' THEN 0 ELSE 1 END,
+          ORDER BY CASE WHEN catalog_name = '${sqlLiteral(DEFAULT_CATALOG)}' THEN 0 ELSE 1 END,
                    catalog_name
           LIMIT 100`,
       );
@@ -57,7 +57,7 @@ export function registerUnityCatalogRoutes(app: Application): void {
            FROM system.information_schema.schemata
           WHERE catalog_name = '${sqlLiteral(catalog)}'
             AND schema_name <> 'information_schema'
-          ORDER BY CASE WHEN schema_name = '${DEFAULT_SCHEMA}' THEN 0 ELSE 1 END,
+          ORDER BY CASE WHEN schema_name = '${sqlLiteral(DEFAULT_SCHEMA)}' THEN 0 ELSE 1 END,
                    schema_name
           LIMIT 500`,
       );
@@ -108,7 +108,7 @@ export function registerUnityCatalogRoutes(app: Application): void {
       const schema = req.query.schema
         ? requireIdentifier(req.query.schema, 'schema')
         : DEFAULT_SCHEMA;
-      const scopedRows = await executeStatement(
+      const scopedRows = catalog && schema ? await executeStatement(
         req,
         `SELECT table_catalog, table_schema, table_name, table_type, table_owner, comment
            FROM system.information_schema.tables
@@ -118,7 +118,7 @@ export function registerUnityCatalogRoutes(app: Application): void {
             AND LOWER(table_name) LIKE '%${query}%'
           ORDER BY table_name
           LIMIT 50`,
-      );
+      ) : [];
       if (scopedRows.length) {
         res.json(scopedRows.map(toAsset));
         return;
@@ -132,8 +132,8 @@ export function registerUnityCatalogRoutes(app: Application): void {
             AND LOWER(CONCAT(table_catalog, '.', table_schema, '.', table_name))
                 LIKE '%${query}%'
           ORDER BY CASE
-                     WHEN table_catalog = '${DEFAULT_CATALOG}'
-                      AND table_schema = '${DEFAULT_SCHEMA}' THEN 0
+                     WHEN table_catalog = '${sqlLiteral(DEFAULT_CATALOG)}'
+                      AND table_schema = '${sqlLiteral(DEFAULT_SCHEMA)}' THEN 0
                      ELSE 1
                    END,
                    table_catalog, table_schema, table_name

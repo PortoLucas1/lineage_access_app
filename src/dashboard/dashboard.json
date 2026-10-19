@@ -103,7 +103,7 @@
             "name": "title",
             "multilineTextboxSpec": {
               "lines": [
-                "# Northpeak Lineage & Access \u2014 Governance Overview\n",
+                "# Lineage & Access \u2014 Governance Overview\n",
                 "\n",
                 "**The story** \u2014 three weeks ago **`mv_exec_revenue_daily`** was published. Its focused lineage now ends at **two Tableau dashboards, one Databricks dashboard, one notebook, and one governance agent** \u2014 while its upstream path includes **`customer_pii`**.\n",
                 "\n",

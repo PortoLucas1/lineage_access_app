@@ -32,6 +32,12 @@ type Deps = {
       defaultCatalog: string;
       defaultSchema: string;
     };
+    terraformBaseline?: {
+      modulePath: string;
+      catalog: string;
+      schema: string;
+      manifest: string;
+    };
     branding: { appName: string };
     assistantScript?: Array<{
       label: string;
@@ -145,8 +151,14 @@ export function registerConfigRoutes(app: Application, deps: Deps): void {
       dashboardId: appConfig.dashboardId,
       branding: appConfig.branding,
       ucExplorer: appConfig.ucExplorer ?? {
-        defaultCatalog: 'porto_catalog',
-        defaultSchema: 'dbdemos_pipeline_bike',
+        defaultCatalog: '',
+        defaultSchema: '',
+      },
+      terraformBaseline: appConfig.terraformBaseline ?? {
+        modulePath: process.env.TERRAFORM_MODULE_PATH || 'terraform',
+        catalog: process.env.TERRAFORM_CATALOG || '',
+        schema: process.env.TERRAFORM_SCHEMA || '',
+        manifest: 'terraform/declared-grants.json',
       },
       assistantScript: appConfig.assistantScript ?? [],
     });

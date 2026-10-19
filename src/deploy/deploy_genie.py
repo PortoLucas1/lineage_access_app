@@ -1,6 +1,6 @@
 # Databricks notebook source
 """
-Deploy the Northpeak Lineage & Access Genie Space — DAB setup-job task.
+Deploy the Lineage & Access Genie Space — DAB setup-job task.
 
 Loads the committed serialized-space JSON (src/genie/genie_space.json),
 substitutes the authored catalog.schema with the deployed one, then creates or
@@ -15,12 +15,11 @@ Outputs (taskValues): genie_space_id
 
 # COMMAND ----------
 
-SPACE_TITLE = "Northpeak Lineage & Access Analytics_b89e91"
+SPACE_TITLE = "Lineage & Access Analytics"
 SPACE_DESCRIPTION = (
-    "Explore Northpeak Retail's Unity Catalog governance graph — asset lineage, "
-    "a compact set of eight data assets feeding two Tableau dashboards, one "
-    "Databricks dashboard, one notebook, and one agent, plus focused access "
-    "grants across three users and five groups."
+    "Explore the Unity Catalog governance graph — asset lineage, "
+    "downstream Tableau and Databricks dashboards, notebooks, and agents, "
+    "plus access grants."
 )
 
 # The catalog.schema the committed genie_space.json was authored against.

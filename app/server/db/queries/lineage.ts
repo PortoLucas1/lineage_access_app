@@ -9,6 +9,13 @@ export type GrantStatus = 'active' | 'flagged_for_review';
 // Row shapes (client/server boundary — keep in sync with shared/types.ts)
 // ============================================================================
 
+export type BiConnection = {
+  kind: 'dbsql_dashboard' | 'tableau_dashboard' | 'notebook' | 'workflow';
+  id: string;
+  name: string;
+  platform: string;
+};
+
 export type AssetRow = {
   id: string;
   assetName: string;
@@ -25,6 +32,7 @@ export type AssetRow = {
   downstreamCount: number;
   principalsWithAccess: number;
   hasOverBroadGrant: boolean;
+  biConnections?: BiConnection[];
 };
 
 export type EdgeRow = {
@@ -85,6 +93,7 @@ function toAsset(r: Record<string, unknown>): AssetRow {
     downstreamCount: Number(r.downstream_count ?? 0),
     principalsWithAccess: Number(r.principals_with_access ?? 0),
     hasOverBroadGrant: r.has_over_broad_grant === true,
+    biConnections: [],
   };
 }
 

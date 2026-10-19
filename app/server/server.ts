@@ -135,6 +135,16 @@ type AppConfig = {
   /** Volume path `/Volumes/<catalog>/<schema>/<volume>`. */
   pdfVolumePath?: string;
   branding: { appName: string };
+  ucExplorer?: {
+    defaultCatalog: string;
+    defaultSchema: string;
+  };
+  terraformBaseline?: {
+    modulePath: string;
+    catalog: string;
+    schema: string;
+    manifest: string;
+  };
   assistantScript?: Array<{
     label: string;
     prompt: string;
@@ -186,6 +196,20 @@ const appConfigSchema = z
     mlModelName: z.string().optional(),
     pdfVolumePath: z.string().optional(),
     branding: z.object({ appName: z.string().min(1) }),
+    ucExplorer: z
+      .object({
+        defaultCatalog: z.string(),
+        defaultSchema: z.string(),
+      })
+      .optional(),
+    terraformBaseline: z
+      .object({
+        modulePath: z.string(),
+        catalog: z.string(),
+        schema: z.string(),
+        manifest: z.string(),
+      })
+      .optional(),
     assistantScript: z
       .array(
         z.object({
@@ -305,7 +329,26 @@ function loadAppConfig(): AppConfig {
     );
   }
 
-  return result.data as AppConfig;
+  const cfg = result.data as AppConfig;
+  const demoCatalog = process.env.DEMO_CATALOG ?? '';
+  const demoSchema = process.env.DEMO_SCHEMA ?? '';
+  cfg.ucExplorer = {
+    defaultCatalog: cfg.ucExplorer?.defaultCatalog || demoCatalog,
+    defaultSchema: cfg.ucExplorer?.defaultSchema || demoSchema,
+  };
+  cfg.terraformBaseline = {
+    modulePath: cfg.terraformBaseline?.modulePath || process.env.TERRAFORM_MODULE_PATH || 'terraform',
+    catalog:
+      cfg.terraformBaseline?.catalog
+      || process.env.TERRAFORM_CATALOG
+      || cfg.ucExplorer.defaultCatalog,
+    schema:
+      cfg.terraformBaseline?.schema
+      || process.env.TERRAFORM_SCHEMA
+      || cfg.ucExplorer.defaultSchema,
+    manifest: cfg.terraformBaseline?.manifest || 'terraform/declared-grants.json',
+  };
+  return cfg;
 }
 
 const appConfig = loadAppConfig();

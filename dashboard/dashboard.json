@@ -72,7 +72,7 @@
             "name": "title",
             "multilineTextboxSpec": {
               "lines": [
-                "# Northpeak Lineage & Access \u2014 Governance Overview\n",
+                "# Lineage & Access \u2014 Governance Overview\n",
                 "\n",
                 "**The story** \u2014 three weeks ago a new materialized view **`mv_exec_revenue_daily`** was published. Its lineage fan-out spiked (18 new downstream edges), and it now feeds the **Executive Revenue Tableau dashboard** and a **$250K/yr finance workflow** \u2014 while reading from **`customer_pii`**, a PII table the **`all-analysts`** group (42 people) can read via an over-broad grant.\n",
                 "\n",

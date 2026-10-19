@@ -1,5 +1,5 @@
 # Databricks notebook source
-"""Generate the compact Northpeak lineage and access demo dataset.
+"""Generate the compact lineage and access sample dataset.
 
 The graph intentionally contains only 13 assets:
 * 8 tables, views, and materialized views

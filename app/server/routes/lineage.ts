@@ -16,6 +16,7 @@ import {
   isUcFullName,
 } from '../uc/lineage.js';
 import { getUcGrantComparison } from '../uc/permissions.js';
+import { getCachedBiAsset, isBiAssetId } from '../uc/bi-consumers.js';
 
 /**
  * Lineage & Access read routes — drive the Lineage Explorer page.
@@ -49,9 +50,11 @@ export function registerLineageRoutes(app: Application, deps: { db: AppDb }): vo
   });
 
   app.get('/api/assets/:id', async (req, res) => {
-    const row = isUcFullName(req.params.id)
-      ? await getUcAsset(req, req.params.id)
-      : await getAsset(db, req.params.id);
+    const row = isBiAssetId(req.params.id)
+      ? getCachedBiAsset(req.params.id)
+      : isUcFullName(req.params.id)
+        ? await getUcAsset(req, req.params.id)
+        : await getAsset(db, req.params.id);
     if (!row) {
       res.status(404).json({ error: 'asset not found' });
       return;
@@ -61,6 +64,10 @@ export function registerLineageRoutes(app: Application, deps: { db: AppDb }): vo
 
   app.get('/api/assets/:id/grants', async (req, res) => {
     try {
+      if (isBiAssetId(req.params.id)) {
+        res.json([]);
+        return;
+      }
       const rows = isUcFullName(req.params.id)
         ? await getUcGrantComparison(req, req.params.id)
         : await getGrantsForAsset(db, req.params.id);
@@ -89,6 +96,10 @@ export function registerLineageRoutes(app: Application, deps: { db: AppDb }): vo
 
   // Column-level lineage for any governed object — the graph expansion payload.
   app.get('/api/assets/:id/columns', async (req, res) => {
+    if (isBiAssetId(req.params.id)) {
+      res.json({ assetId: req.params.id, columns: [], edges: [], neighborColumns: [] });
+      return;
+    }
     const cl = isUcFullName(req.params.id)
       ? await getUcColumnLineage(req, req.params.id)
       : await getColumnLineage(db, req.params.id);

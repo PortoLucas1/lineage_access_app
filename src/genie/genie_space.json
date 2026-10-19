@@ -72,7 +72,7 @@
       {
         "id": "77777777777777777777777777777777",
         "content": [
-          "Northpeak has a compact governance graph with 13 total assets.",
+          "This workspace has a compact sample governance graph with 13 total assets.",
           "Eight assets are tables, views, or materialized views.",
           "The five terminal assets are two Tableau dashboards, one Databricks dashboard, one notebook, and one agent.",
           "The identity directory contains three named users and five groups: data-engineers, data-analysts, platform-admins, finance, and contractors."

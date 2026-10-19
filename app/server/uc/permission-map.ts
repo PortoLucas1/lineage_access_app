@@ -82,14 +82,20 @@ export async function getPermissionMap(
   let conveyedBy: string[] = [];
 
   if (kind !== 'group') {
-    const probeCatalog = catalogFilter ?? process.env.DATABRICKS_DEFAULT_CATALOG ?? 'porto_catalog';
-    try {
-      const probed = await getEffective('catalog', probeCatalog, trimmedPrincipal);
-      conveyedBy = probed.map((grant) => grant.conveyedBy);
-      if (catalogFilter) effectiveCatalogGrants = probed;
-    } catch (error) {
-      if (catalogFilter) throw error;
-      errors.push(error instanceof Error ? error.message : String(error));
+    const probeCatalog =
+      catalogFilter
+      || process.env.DATABRICKS_DEFAULT_CATALOG
+      || process.env.DEMO_CATALOG
+      || '';
+    if (probeCatalog) {
+      try {
+        const probed = await getEffective('catalog', probeCatalog, trimmedPrincipal);
+        conveyedBy = probed.map((grant) => grant.conveyedBy);
+        if (catalogFilter) effectiveCatalogGrants = probed;
+      } catch (error) {
+        if (catalogFilter) throw error;
+        errors.push(error instanceof Error ? error.message : String(error));
+      }
     }
   }
 

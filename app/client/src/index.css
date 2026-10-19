@@ -19,7 +19,7 @@
   /* ========================================================================
    * BRAND PALETTE — single source of truth.
    *
-   * These five stops mirror the Northpeak AI/BI dashboard's
+   * These five stops mirror the AI/BI dashboard's
    * visualizationColors theme so the app + dashboard read as one product.
    * Every other token below derives from these — change a stop here and
    * the whole app shifts. Edit cautiously.
@@ -153,7 +153,7 @@
   --trafficlight-green:  #22C55E;
 
   /* Databricks brand red — used by the sidebar "Data + AI" pitch glow.
-     External brand asset, not part of the Northpeak palette. */
+     External brand asset, not part of the app palette. */
   --databricks-red: #EE3D2C;
 }
 

@@ -116,7 +116,7 @@ resources:
         - catalog.catalogs:read
         - catalog.schemas:read
         - catalog.tables:read
-        - identity:read
+        - workspace.workspace
       resources:
         - name: sql-warehouse
           sql_warehouse:

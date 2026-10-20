@@ -346,27 +346,25 @@ async function getLakeviewDashboardGrants(
   dashboardId: string,
 ): Promise<GrantRow[]> {
   try {
-    let headers: Headers;
-    try {
-      headers = await authHeaders(req);
-    } catch {
-      headers = await appAuthHeaders();
-    }
-    const response = await fetch(
-      `${workspaceHost()}/api/2.0/permissions/dashboards/${encodeURIComponent(dashboardId)}`,
-      { headers, signal: AbortSignal.timeout(10_000) },
+    const result = await fetchWorkspaceJson(
+      req,
+      `/api/2.0/permissions/dashboards/${encodeURIComponent(dashboardId)}`,
     );
-    if (!response.ok) {
+    if (!result.ok) {
       console.error(
-        `[lineage] dashboard permissions lookup failed for ${dashboardId}: HTTP ${response.status}`,
+        `[lineage] dashboard permissions lookup failed for ${dashboardId}: HTTP ${result.status} ${result.text}`,
       );
       return [];
     }
-    const body = (await response.json()) as WorkspacePermissionsResponse;
+    const body = result.body as WorkspacePermissionsResponse;
     const cached = getCachedBiAsset(biId);
+    const displayName =
+      (await lakeviewName(req, dashboardId))
+      ?? (cached?.assetName && cached.assetName !== dashboardId ? cached.assetName : null)
+      ?? dashboardId;
     return grantRowsFromWorkspaceAcl(
       biId,
-      cached?.assetName ?? dashboardId,
+      displayName,
       'dbsql_dashboard',
       body.access_control_list ?? [],
     );
@@ -376,6 +374,40 @@ async function getLakeviewDashboardGrants(
     );
     return [];
   }
+}
+
+/**
+ * Databricks Apps OBO tokens often omit the Lakeview `dashboards` scope, so
+ * user-token calls 403 even when the viewer can open the dashboard. Retry as
+ * the app service principal (which can already read a dashboard it has
+ * CAN_READ on).
+ */
+async function fetchWorkspaceJson(
+  req: Request,
+  path: string,
+): Promise<{ ok: true; body: unknown } | { ok: false; status: number; text: string }> {
+  async function once(headers: Headers): Promise<Response> {
+    return fetch(`${workspaceHost()}${path}`, {
+      headers,
+      signal: AbortSignal.timeout(10_000),
+    });
+  }
+
+  let headers: Headers;
+  try {
+    headers = await authHeaders(req);
+  } catch {
+    headers = await appAuthHeaders();
+  }
+  let response = await once(headers);
+  if (response.status === 401 || response.status === 403) {
+    const retry = await once(await appAuthHeaders());
+    if (retry.ok) response = retry;
+  }
+  if (!response.ok) {
+    return { ok: false, status: response.status, text: (await response.text()).slice(0, 300) };
+  }
+  return { ok: true, body: await response.json() };
 }
 
 /** Maps a Workspace Permissions ACL into the GrantRow shape the access panel already understands. */
@@ -513,37 +545,45 @@ async function withDashboardNames(req: Request, consumers: BiConsumer[]): Promis
   ));
 }
 
-// Dashboard names rarely change and the same handful of dashboard ids show up
-// on every lineage load — cache resolved (and failed) lookups in-process so
-// re-rendering the same graph never re-hits Lakeview, and a slow/flaky call
-// doesn't recur on every request.
-const lakeviewNameCache = new Map<string, string | null>();
+// Hits are stable; misses are often a missing OBO scope and should retry soon.
+const lakeviewNameCache = new Map<string, { value: string | null; expiresAt: number }>();
+const NAME_HIT_MS = 10 * 60 * 1000;
+const NAME_MISS_MS = 30 * 1000;
 
 async function lakeviewName(req: Request, dashboardId: string): Promise<string | null> {
-  if (lakeviewNameCache.has(dashboardId)) return lakeviewNameCache.get(dashboardId)!;
+  const cached = lakeviewNameCache.get(dashboardId);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
   const name = await fetchLakeviewName(req, dashboardId);
-  lakeviewNameCache.set(dashboardId, name);
+  lakeviewNameCache.set(dashboardId, {
+    value: name,
+    expiresAt: Date.now() + (name ? NAME_HIT_MS : NAME_MISS_MS),
+  });
   return name;
 }
 
 async function fetchLakeviewName(req: Request, dashboardId: string): Promise<string | null> {
   try {
-    let headers: Headers;
-    try {
-      headers = await authHeaders(req);
-    } catch {
-      headers = await appAuthHeaders();
-    }
-    const response = await fetch(
-      `${workspaceHost()}/api/2.0/lakeview/dashboards/${encodeURIComponent(dashboardId)}`,
-      { headers, signal: AbortSignal.timeout(10_000) },
+    const result = await fetchWorkspaceJson(
+      req,
+      `/api/2.0/lakeview/dashboards/${encodeURIComponent(dashboardId)}`,
     );
-    if (!response.ok) return null;
-    const body = (await response.json()) as { display_name?: string };
-    return body.display_name?.trim() || null;
+    if (!result.ok) {
+      console.error(
+        `[lineage] lakeview name lookup failed for ${dashboardId}: HTTP ${result.status} ${result.text}`,
+      );
+      return null;
+    }
+    return lakeviewDisplayName(result.body);
   } catch {
     return null;
   }
+}
+
+export function lakeviewDisplayName(body: unknown): string | null {
+  if (!body || typeof body !== 'object') return null;
+  const record = body as Record<string, unknown>;
+  const name = record.display_name ?? record.displayName;
+  return typeof name === 'string' && name.trim() ? name.trim() : null;
 }
 
 function consumerAsset(consumer: BiConsumer): AssetRow {

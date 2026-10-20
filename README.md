@@ -144,7 +144,7 @@ databricks bundle deploy \
 cd terraform
 cp terraform.tfvars.example terraform.tfvars
 # set host, CLI profile, catalog_name, schema_name
-# replace declared-grants.json with your catalog grants
+# optional private capture (gitignored): terraform/.declared-grants.json
 terraform init
 terraform plan
 ```
@@ -153,10 +153,9 @@ Leave `manage_catalog_grants=false` unless you have reviewed the plan and
 want Terraform to become authoritative for those principals. **Do not apply
 from automation without a human review.**
 
-In the running app, open **Permissions mapping**. The **Terraform grant
-baseline** card lets you record the module path and catalog/schema for the
-plan command you will run locally. Save stores the values in this browser
-only.
+In the running app, open **Terraform source** and point it at the workspace
+folder that holds `databricks_permissions.tf` (Unity Catalog) and
+`extsystem_permissions.tf` (external lineage). Skip uses the bundled example.
 
 Details: [terraform/README.md](./terraform/README.md).
 

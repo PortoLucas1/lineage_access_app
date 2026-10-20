@@ -45,11 +45,22 @@ let consoleErrors: string[] = [];
 let pageErrors: string[] = [];
 let failedRequests: string[] = [];
 
-test('smoke test - app loads lineage explorer', async ({ page }) => {
+test('smoke test - setup is the first page until skipped', async ({ page }) => {
   await page.goto('/');
+
+  await expect(page.getByRole('heading', { name: 'Point the app at your Terraform grants' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Terraform source' })).toBeVisible();
+  await expect(page.getByText('service principal')).toBeVisible();
+  await page.getByRole('button', { name: 'Skip' }).click();
+  await expect(page.getByRole('heading', { name: 'Select an asset' })).toBeVisible();
+});
+
+test('smoke test - app loads lineage explorer', async ({ page }) => {
+  await page.goto('/lineage');
 
   await expect(page.getByRole('link', { name: 'Lineage Explorer' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Permissions mapping' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Terraform source' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Select an asset' })).toBeVisible();
   await expect(page.getByText('Select an asset to load lineage.')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Dashboard' })).toHaveCount(0);

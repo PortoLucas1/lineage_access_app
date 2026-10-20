@@ -6,8 +6,15 @@ owner.
 
 1. Copy `terraform.tfvars.example` to `terraform.tfvars`.
 2. Set `databricks_host`, `databricks_profile`, `catalog_name`, and `schema_name`.
-3. Replace `declared-grants.json` with a capture of **your** catalog grants.
+3. Put Unity Catalog grants in `databricks_permissions.tf` and external-lineage
+   grants (Tableau and similar) in `extsystem_permissions.tf`. The public
+   `declared-grants.json` is a sanitized example for `dbdemos_pipeline_bike.rides`.
+   For a private capture of a real catalog, write gitignored
+   `terraform/.declared-grants.json` — Terraform and the app prefer that file
+   when it exists, so colleague emails never land in the public repo.
 4. Run `terraform plan`. Grant writes stay off until you set `manage_catalog_grants=true`.
+   Point the app at this folder (or a workspace copy of it) on the
+   **Terraform source** page so the App service principal can read it.
 
 The Lineage & Access Console reads the same `declared-grants.json` for drift
 comparison on the Permissions mapping page. The app can show the module path

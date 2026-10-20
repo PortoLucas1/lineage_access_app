@@ -8,6 +8,7 @@
  *
  * Chrome (sidebar + header) lives in shell/.
  */
+import { useEffect } from 'react';
 import { createBrowserRouter, Navigate, RouterProvider, Outlet } from 'react-router';
 import { SidebarInset, SidebarProvider } from '@databricks/appkit-ui/react';
 
@@ -15,10 +16,22 @@ import { AppSidebar } from '@/shell/AppSidebar';
 import { AppHeader } from '@/shell/AppHeader';
 import { LineageExplorerView } from '@/lineage/LineageExplorerView';
 import { PermissionsMappingView } from '@/permissions/PermissionsMappingView';
+import { TerraformSourceView } from '@/setup/TerraformSourceView';
 import { SessionProvider } from '@/lib/api';
+import { isSetupComplete, readSetupState } from '@/lib/setup';
 import { RouteError } from './RouteError';
 
 function Layout() {
+  useEffect(() => {
+    const state = readSetupState();
+    if (state.status !== 'configured' || !state.path) return;
+    void fetch('/api/terraform/source', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: state.path }),
+    });
+  }, []);
+
   return (
     <SessionProvider>
       <SidebarProvider>
@@ -32,6 +45,10 @@ function Layout() {
       </SidebarProvider>
     </SessionProvider>
   );
+}
+
+function HomeRedirect() {
+  return <Navigate to={isSetupComplete() ? '/lineage' : '/setup'} replace />;
 }
 
 // When this app runs inside the Demo Prompt Generator's preview proxy, a
@@ -53,12 +70,13 @@ const router = createBrowserRouter(
       element: <Layout />,
       errorElement: <RouteError />,
       children: [
-        { path: '/', element: <LineageExplorerView /> },
+        { path: '/', element: <HomeRedirect /> },
         { path: '/lineage', element: <LineageExplorerView /> },
-        { path: '/analytics', element: <Navigate to="/" replace /> },
-        { path: '/c/:id', element: <Navigate to="/" replace /> },
+        { path: '/analytics', element: <Navigate to="/lineage" replace /> },
+        { path: '/c/:id', element: <Navigate to="/lineage" replace /> },
         { path: '/dashboard', element: <Navigate to="/permissions" replace /> },
         { path: '/permissions', element: <PermissionsMappingView /> },
+        { path: '/setup', element: <TerraformSourceView /> },
       ],
     },
   ],

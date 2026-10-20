@@ -58,6 +58,7 @@ sync:
     - "app/dist/**"
     - "app/client/dist/**"
     - "app/drizzle/**"
+    - "app/config/.declared-grants.json"
   exclude:
     - "app/node_modules/**"
     - "app/.venv/**"
@@ -75,6 +76,8 @@ targets:
     mode: development
   prod:
     mode: production
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
 
 resources:
   # ── Schema ────────────────────────────────────────────────────────────

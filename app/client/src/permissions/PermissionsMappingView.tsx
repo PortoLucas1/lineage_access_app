@@ -7,7 +7,6 @@ import { fetchIdentityCapabilities, fetchPermissionMap } from '@/lib/permissions
 import type { DirectoryIdentity, PermissionMap } from '@/shared/types';
 import { IdentityBrowser } from './IdentityBrowser';
 import { AssetAccessPanel } from './AssetAccessPanel';
-import { TerraformBaselineCard } from './TerraformBaselineCard';
 
 export function PermissionsMappingView() {
   const { config } = useSession();
@@ -20,6 +19,7 @@ export function PermissionsMappingView() {
   const [catalogs, setCatalogs] = useState<string[]>([]);
   const [map, setMap] = useState<PermissionMap | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingLive, setLoadingLive] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -38,7 +38,21 @@ export function PermissionsMappingView() {
       return;
     }
     let cancelled = false;
+    setMap(null);
+    setError(null);
     setLoading(true);
+    setLoadingLive(true);
+
+    fetchPermissionMap(catalog, selected.handle, selected.kind, 'declared')
+      .then((payload) => {
+        if (cancelled) return;
+        setMap(payload);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
+
     fetchPermissionMap(catalog, selected.handle, selected.kind)
       .then((payload) => {
         if (cancelled) return;
@@ -47,11 +61,13 @@ export function PermissionsMappingView() {
       })
       .catch((err: Error) => {
         if (cancelled) return;
-        setMap(null);
         setError(err.message);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setLoadingLive(false);
+        }
       });
     return () => {
       cancelled = true;
@@ -59,10 +75,13 @@ export function PermissionsMappingView() {
   }, [catalog, selected?.handle, selected?.kind]);
 
   const onSelect = (identity: DirectoryIdentity) => {
-    setSearchParams(
-      { principal: identity.handle, kind: identity.kind, id: identity.id },
-      { replace: true },
-    );
+    const next: Record<string, string> = {
+      principal: identity.handle,
+      kind: identity.kind,
+      id: identity.id,
+    };
+    if (catalog) next.catalog = catalog;
+    setSearchParams(next, { replace: true });
   };
 
   const catalogOptions =
@@ -123,8 +142,13 @@ export function PermissionsMappingView() {
               </select>
             </label>
           </div>
-          <AssetAccessPanel map={map} loading={loading} error={error} />
-          <TerraformBaselineCard baseline={config?.terraformBaseline} />
+          <AssetAccessPanel
+            map={map}
+            loading={loading}
+            loadingLive={loadingLive}
+            error={error}
+            kind={selected?.kind}
+          />
         </div>
       </div>
     </div>

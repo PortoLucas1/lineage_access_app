@@ -1,43 +1,39 @@
 {
-  "irvin.umana@databricks.com": ["USE_CATALOG"],
-  "filipe.deo@databricks.com": ["USE_CATALOG"],
-  "shreel.shah@databricks.com": ["USE_CATALOG"],
-  "3a265965-58c0-4922-af35-ce730c3cdad8": ["USE_CATALOG"],
-  "reza.shabani@databricks.com": ["BROWSE", "EXECUTE", "READ_VOLUME", "SELECT", "USE_CATALOG", "USE_SCHEMA"],
-  "account users": ["BROWSE", "EXECUTE", "READ_VOLUME", "SELECT", "USE_CATALOG", "USE_SCHEMA"],
-  "diego.gomez@databricks.com": ["USE_CATALOG"],
-  "e35c1305-3e62-4235-b215-5255a6386d4f": ["SELECT", "USE_CATALOG", "USE_SCHEMA"],
-  "vladimir.sagot@databricks.com": ["USE_CATALOG"],
-  "pedro.zanlorensi@databricks.com": ["USE_CATALOG"],
-  "daniel.granados@databricks.com": ["USE_CATALOG"],
-  "fernando.come@databricks.com": ["USE_CATALOG"],
-  "francisco.vargas@databricks.com": ["USE_CATALOG"],
-  "andres.zuniga@databricks.com": ["USE_CATALOG"],
-  "eri.adepoju@databricks.com": ["USE_CATALOG"],
-  "57e7dc57-63b9-4114-a2ad-0a6226794a22": ["ALL_PRIVILEGES", "MANAGE"],
-  "youssef.mrini@databricks.com": ["CREATE_SCHEMA", "USE_CATALOG"],
-  "wenwen.xie@databricks.com": ["ALL_PRIVILEGES"],
-  "marco.ferraro@databricks.com": ["USE_CATALOG"],
-  "joel.ramirez@databricks.com": ["USE_CATALOG"],
-  "jose.navarro@databricks.com": ["USE_CATALOG"],
-  "juandiego.vargasrosales@databricks.com": ["USE_CATALOG"],
-  "ivan.calvo@databricks.com": ["USE_CATALOG"],
-  "carlos.dip@databricks.com": ["USE_CATALOG"],
-  "victor.gomes@databricks.com": ["USE_CATALOG"],
-  "thais.henrique@databricks.com": ["USE_CATALOG"],
-  "andres.garcia@databricks.com": ["USE_CATALOG"],
-  "stuart.libby@databricks.com": ["USE_CATALOG"],
-  "jose.cisneros@databricks.com": ["USE_CATALOG"],
-  "esteban.castillo@databricks.com": ["USE_CATALOG"],
-  "nishit.jain@databricks.com": ["USE_CATALOG"],
-  "kevin.romero@databricks.com": ["USE_CATALOG"],
-  "esteban.salom@databricks.com": ["USE_CATALOG"],
-  "a9ec09ba-4c4d-4eab-8dda-9a73cc3bd6ec": ["USE_CATALOG"],
-  "julian.camacho@databricks.com": ["USE_CATALOG"],
-  "moises.robles@databricks.com": ["USE_CATALOG"],
-  "yuki.shiga@databricks.com": ["ALL_PRIVILEGES"],
-  "jose.delgado@databricks.com": ["USE_CATALOG"],
-  "joao.gianfaldoni@databricks.com": ["USE_CATALOG"],
-  "david.leiva@databricks.com": ["USE_CATALOG"],
-  "bruno.ogata@databricks.com": ["USE_CATALOG"]
+  "catalog": {
+    "account users": [
+      "BROWSE",
+      "EXECUTE",
+      "READ_VOLUME",
+      "SELECT",
+      "USE_CATALOG",
+      "USE_SCHEMA"
+    ],
+    "rides_analysts": [
+      "SELECT",
+      "USE_CATALOG",
+      "USE_SCHEMA"
+    ]
+  },
+  "schemas": {
+    "dbdemos_pipeline_bike": {
+      "account users": [
+        "BROWSE",
+        "USE_SCHEMA"
+      ],
+      "rides_analysts": [
+        "USE_SCHEMA"
+      ]
+    }
+  },
+  "tables": {
+    "dbdemos_pipeline_bike.rides": {
+      "rides_analysts": [
+        "SELECT"
+      ],
+      "rides_ops": [
+        "SELECT",
+        "MODIFY"
+      ]
+    }
+  }
 }

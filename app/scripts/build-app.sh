@@ -27,6 +27,10 @@ cd "$APP_DIR"
 
 echo "[build-app] syncing Terraform permission manifest…"
 cp "$APP_DIR/../terraform/declared-grants.json" "$APP_DIR/config/declared-grants.json"
+if [ -f "$APP_DIR/../terraform/.declared-grants.json" ]; then
+  echo "[build-app] overlaying private .declared-grants.json (not committed)"
+  cp "$APP_DIR/../terraform/.declared-grants.json" "$APP_DIR/config/.declared-grants.json"
+fi
 
 echo "[build-app] installing npm dependencies (incl. dev)…"
 npm install --include=dev

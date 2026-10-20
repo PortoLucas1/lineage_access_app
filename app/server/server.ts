@@ -80,6 +80,7 @@ import { registerChartRoutes } from './routes/charts.js';
 import { registerDevLogRoutes } from './routes/dev-log.js';
 import { registerUnityCatalogRoutes } from './routes/unity-catalog.js';
 import { registerPermissionRoutes } from './routes/permissions.js';
+import { registerTerraformRoutes } from './routes/terraform.js';
 
 // ============================================================================
 // Config
@@ -521,6 +522,7 @@ await createApp({
   registerLineageRoutes(app, { db });
   registerUnityCatalogRoutes(app);
   registerPermissionRoutes(app);
+  registerTerraformRoutes(app);
   registerActivityRoutes(app, { db });
   registerAdminRoutes(app, { db, data: appConfig.data });
 

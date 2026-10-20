@@ -23,8 +23,8 @@ locals {
   }
 
   # Replace with principals from your catalog. Live grants belong in
-  # declared-grants.json; this map is documentation only.
-  effective_asset_readers = jsondecode(file("${path.module}/declared-grants.json"))
+  # declared-grants.json (or gitignored .declared-grants.json).
+  effective_asset_readers = local.grants_file
 }
 
 output "analysis_target" {

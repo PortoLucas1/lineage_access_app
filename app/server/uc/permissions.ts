@@ -1,8 +1,8 @@
 import type { Request } from 'express';
-import declaredCatalogGrants from '../../config/declared-grants.json';
 import type { GrantRow } from '../db/queries/lineage.js';
 import { appAuthHeaders } from '../lib/auth.js';
 import { workspaceHost } from '../lib/statement-execution.js';
+import { getDeclaredManifest, privilegesForTable } from './declared-grants.js';
 
 type EffectivePrivilege = {
   privilege: string;
@@ -45,38 +45,49 @@ export async function getUcGrantComparison(
   const body = (await response.json()) as EffectivePermissionsResponse;
 
   const compared = new Map<string, GrantRow>();
-  const declared = declaredCatalogGrants as Record<string, string[]>;
-  for (const [principal, privileges] of Object.entries(declared)) {
-    for (const privilege of privileges.filter((item) => TABLE_PRIVILEGES.has(item))) {
-      compared.set(
-        comparisonKey(principal, privilege),
-        grantRow(assetId, principal, privilege, 'declared_only', catalog, 'CATALOG'),
-      );
-    }
+  const declared = privilegesForTable(getDeclaredManifest(), assetId)
+    .filter((row) => TABLE_PRIVILEGES.has(row.privilege));
+
+  for (const row of declared) {
+    compared.set(
+      comparisonKey(row.principal, row.privilege, `${row.inheritedFromType}:${row.inheritedFromName}`),
+      grantRow(
+        assetId,
+        row.principal,
+        row.privilege,
+        'declared_only',
+        row.inheritedFromName,
+        row.inheritedFromType,
+      ),
+    );
   }
 
   for (const assignment of body.privilege_assignments ?? []) {
     for (const item of assignment.privileges ?? []) {
       const inheritedName = item.inherited_from_name ?? assetId;
       const inheritedType = item.inherited_from_type ?? 'TABLE';
-      const key = comparisonKey(assignment.principal, item.privilege);
-      const matchesTerraform =
-        inheritedType === 'CATALOG'
-        && inheritedName === catalog
-        && declared[assignment.principal]?.includes(item.privilege);
+      const match = declared.find((row) =>
+        row.principal === assignment.principal
+        && row.privilege === item.privilege
+        && row.inheritedFromType === inheritedType
+        && (row.inheritedFromName === inheritedName
+          || inheritedType === 'TABLE'
+          || suffixMatch(row.inheritedFromName, inheritedName)),
+      ) ?? declared.find((row) =>
+        row.principal === assignment.principal
+        && row.privilege === item.privilege
+        && row.inheritedFromType === inheritedType,
+      );
+      const key = match
+        ? comparisonKey(assignment.principal, item.privilege, `${match.inheritedFromType}:${match.inheritedFromName}`)
+        : comparisonKey(assignment.principal, item.privilege, `${inheritedType}:${inheritedName}`);
       compared.set(
-        matchesTerraform
-          ? key
-          : comparisonKey(
-              assignment.principal,
-              item.privilege,
-              `${inheritedType}:${inheritedName}`,
-            ),
+        key,
         grantRow(
           assetId,
           assignment.principal,
           item.privilege,
-          matchesTerraform ? 'in_sync' : 'effective_only',
+          match ? 'in_sync' : 'effective_only',
           inheritedName,
           inheritedType,
         ),
@@ -94,6 +105,10 @@ export async function getUcGrantComparison(
     || a.principal.localeCompare(b.principal)
     || String(a.privilege).localeCompare(String(b.privilege)),
   );
+}
+
+function suffixMatch(left: string, right: string): boolean {
+  return left === right || left.endsWith(`.${right}`) || right.endsWith(`.${left}`);
 }
 
 function grantRow(
@@ -130,7 +145,7 @@ function grantRow(
     inheritedFromType,
     declaredScope: comparisonStatus === 'effective_only'
       ? null
-      : `CATALOG ${assetId.split('.')[0]}`,
+      : `${inheritedFromType} ${inheritedFromName}`,
   };
 }
 

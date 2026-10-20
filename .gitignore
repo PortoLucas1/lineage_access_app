@@ -10,6 +10,8 @@ __pycache__/
 !.env.template
 .databrickscfg
 .terraform/
+.declared-grants.json
+**/.declared-grants.json
 terraform.tfvars
 *.tfstate
 *.tfstate.*

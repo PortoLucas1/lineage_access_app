@@ -6,7 +6,7 @@ import {
   listIdentities,
   type IdentityKind,
 } from '../uc/identities.js';
-import { getPermissionMap } from '../uc/permission-map.js';
+import { getDeclaredPermissionMap, getPermissionMap, getPermissionMapChildren } from '../uc/permission-map.js';
 
 function strParam(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -70,6 +70,24 @@ export function registerPermissionRoutes(app: Application): void {
     }
   });
 
+  app.get('/api/permissions/map/children', async (req, res) => {
+    try {
+      const catalog = strParam(req.query.catalog);
+      const schema = strParam(req.query.schema);
+      const principal = strParam(req.query.principal);
+      const kindRaw = strParam(req.query.kind);
+      if (!catalog) throw new Error('catalog is required');
+      if (!schema) throw new Error('schema is required');
+      if (!principal) throw new Error('principal is required');
+      const kind = kindRaw ? parseKind(kindRaw) : undefined;
+      res.json({
+        assets: await getPermissionMapChildren(req, catalog, schema, principal, kind),
+      });
+    } catch (error) {
+      routeError(res, error);
+    }
+  });
+
   app.get('/api/permissions/map', async (req, res) => {
     try {
       const catalog = strParam(req.query.catalog);
@@ -77,6 +95,10 @@ export function registerPermissionRoutes(app: Application): void {
       const kindRaw = strParam(req.query.kind);
       if (!principal) throw new Error('principal is required');
       const kind = kindRaw ? parseKind(kindRaw) : undefined;
+      if (strParam(req.query.source) === 'declared') {
+        res.json(getDeclaredPermissionMap(catalog || null, principal, kind));
+        return;
+      }
       res.json(await getPermissionMap(req, catalog || null, principal, kind));
     } catch (error) {
       routeError(res, error);

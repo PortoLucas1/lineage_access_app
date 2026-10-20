@@ -1,7 +1,7 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Box, ChevronRight, FunctionSquare, Search } from 'lucide-react';
-import { ACCESS_LEVEL_LABELS } from '@/lib/permissions';
-import type { AccessLevel, MappedAsset, PermissionMap } from '@/shared/types';
+import { ACCESS_LEVEL_LABELS, fetchPermissionMapChildren } from '@/lib/permissions';
+import type { AccessLevel, IdentityKind, MappedAsset, PermissionMap } from '@/shared/types';
 import { CatalogIcon, SchemaIcon, UcAssetIcon } from '@/lineage/ucIcons';
 import { assetTypeLabel } from '@/lineage/assetVisuals';
 
@@ -13,6 +13,7 @@ const LEVEL_STYLES: Record<AccessLevel, string> = {
 };
 
 const INDENT_PX = 18;
+const PAGE_SIZE = 25;
 
 type SchemaNode = {
   name: string;
@@ -30,14 +31,18 @@ type CatalogNode = {
 export function AssetAccessPanel({
   map,
   loading,
+  loadingLive = false,
   error,
+  kind,
 }: {
   map: PermissionMap | null;
   loading: boolean;
+  loadingLive?: boolean;
   error: string | null;
+  kind?: IdentityKind;
 }) {
-  if (loading) return <PanelMessage>Loading effective access…</PanelMessage>;
-  if (error) return <PanelMessage tone="error">{error}</PanelMessage>;
+  if (!map && loading) return <PanelMessage>Loading access…</PanelMessage>;
+  if (!map && error) return <PanelMessage tone="error">{error}</PanelMessage>;
   if (!map) {
     return (
       <PanelMessage>
@@ -45,17 +50,80 @@ export function AssetAccessPanel({
       </PanelMessage>
     );
   }
-  return <AccessTree key={`${map.catalog ?? 'all'}:${map.principal}`} map={map} />;
+  return (
+    <AccessTree
+      key={`${map.catalog ?? 'all'}:${map.principal}`}
+      map={map}
+      loadingLive={loadingLive}
+      error={error}
+      kind={kind}
+    />
+  );
 }
 
-function AccessTree({ map }: { map: PermissionMap }) {
-  const tree = useMemo(() => buildTree(map), [map]);
+function AccessTree({
+  map,
+  loadingLive,
+  error,
+  kind,
+}: {
+  map: PermissionMap;
+  loadingLive: boolean;
+  error: string | null;
+  kind?: IdentityKind;
+}) {
+  const [schemaChildren, setSchemaChildren] = useState<Record<string, MappedAsset[]>>({});
+  const [loadingSchemas, setLoadingSchemas] = useState<Set<string>>(() => new Set());
+  const tree = useMemo(() => {
+    const base = buildTree(map);
+    return base.map((catalog) => ({
+      ...catalog,
+      schemas: catalog.schemas.map((schema) => {
+        const extra = schemaChildren[schema.fullName];
+        if (!extra?.length) return schema;
+        const seen = new Set(schema.children.map((child) => child.fullName));
+        return {
+          ...schema,
+          children: [...schema.children, ...extra.filter((child) => !seen.has(child.fullName))],
+        };
+      }),
+    }));
+  }, [map, schemaChildren]);
   const [query, setQuery] = useState('');
+  const [visibleCatalogs, setVisibleCatalogs] = useState(PAGE_SIZE);
+  const [visibleSchemas, setVisibleSchemas] = useState<Record<string, number>>({});
   const [openCatalogs, setOpenCatalogs] = useState<Set<string>>(
     () => new Set(tree.length <= 3 ? tree.map((node) => node.name) : []),
   );
   const [openSchemas, setOpenSchemas] = useState<Set<string>>(() => new Set());
   const [openDetails, setOpenDetails] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    setVisibleCatalogs(PAGE_SIZE);
+    setVisibleSchemas({});
+  }, [map.principal, map.catalog]);
+
+  const loadSchemaChildren = (fullName: string) => {
+    if (map.source !== 'effective') return;
+    if (fullName in schemaChildren || loadingSchemas.has(fullName)) return;
+    const [catalogName, schemaName] = fullName.split('.');
+    if (!catalogName || !schemaName) return;
+    setLoadingSchemas((current) => new Set(current).add(fullName));
+    fetchPermissionMapChildren(catalogName, schemaName, map.principal, kind)
+      .then((assets) => {
+        setSchemaChildren((current) => ({ ...current, [fullName]: assets }));
+      })
+      .catch(() => {
+        setSchemaChildren((current) => ({ ...current, [fullName]: [] }));
+      })
+      .finally(() => {
+        setLoadingSchemas((current) => {
+          const next = new Set(current);
+          next.delete(fullName);
+          return next;
+        });
+      });
+  };
 
   const needle = query.trim().toLowerCase();
   const searching = needle.length > 0;
@@ -116,21 +184,25 @@ function AccessTree({ map }: { map: PermissionMap }) {
       <div className="px-4 py-3 border-b border-border space-y-2">
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-            Effective access
+            Access
           </div>
           <div className="text-sm text-muted-foreground mt-1">
+            <span className="font-medium text-foreground">{tree.length.toLocaleString()}</span>
+            {' '}{tree.length === 1 ? 'catalog' : 'catalogs'}
+            {' · '}
             <span className="font-medium text-foreground">{total.toLocaleString()}</span>
             {' '}objects
             {map.catalog ? (
               <> in <span className="font-mono">{map.catalog}</span></>
-            ) : (
-              <> across Unity Catalog</>
-            )}
+            ) : null}
           </div>
-          {map.truncated && (
-            <div className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-              Results were capped. Switch to a smaller catalog if you need a complete list.
+          {loadingLive && (
+            <div className="mt-1 text-xs text-muted-foreground">
+              Updating from Unity Catalog…
             </div>
+          )}
+          {error && map.source === 'declared' && (
+            <div className="mt-1 text-xs text-destructive">{error}</div>
           )}
           {map.errors.length > 0 && (
             <div className="mt-1 text-xs text-muted-foreground">
@@ -156,13 +228,17 @@ function AccessTree({ map }: { map: PermissionMap }) {
 
       {total === 0 ? (
         <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-          No Unity Catalog privileges granted to this identity
-          {map.catalog ? ` in ${map.catalog}` : ''}.
+          {loadingLive
+            ? 'Checking Unity Catalog…'
+            : `No Unity Catalog privileges granted to this identity${map.catalog ? ` in ${map.catalog}` : ''}.`}
         </div>
       ) : (
-        <div role="tree" aria-label="Effective access" className="p-1">
-          {visibleTree.map((catalog) => {
+        <div role="tree" aria-label="Access" className="p-1">
+          {(searching ? visibleTree : visibleTree.slice(0, visibleCatalogs)).map((catalog) => {
             const catalogOpen = searching || openCatalogs.has(catalog.name);
+            const schemaLimit = searching ? catalog.schemas.length : (visibleSchemas[catalog.name] ?? PAGE_SIZE);
+            const shownSchemas = catalog.schemas.slice(0, schemaLimit);
+            const hiddenSchemas = catalog.schemas.length - shownSchemas.length;
             return (
               <div key={catalog.name} role="none">
                 <TreeRow
@@ -180,8 +256,13 @@ function AccessTree({ map }: { map: PermissionMap }) {
                 {catalogOpen && catalog.schemas.length === 0 && (
                   <TreeEmpty depth={1} label={searching ? 'No matching assets' : 'No schemas'} />
                 )}
-                {catalogOpen && catalog.schemas.map((schema) => {
+                {catalogOpen && shownSchemas.map((schema) => {
                   const schemaOpen = searching || openSchemas.has(schema.fullName);
+                  const schemaLoading = loadingSchemas.has(schema.fullName);
+                  const schemaExpandable =
+                    schema.children.length > 0
+                    || schema.asset != null
+                    || schemaLoading;
                   return (
                     <div key={schema.fullName} role="none">
                       <TreeRow
@@ -189,13 +270,26 @@ function AccessTree({ map }: { map: PermissionMap }) {
                         icon={<SchemaIcon className="size-4" />}
                         name={schema.name}
                         asset={schema.asset}
-                        expandable={schema.children.length > 0}
+                        expandable={schemaExpandable}
                         expanded={schemaOpen}
                         childCount={schema.children.length}
                         detailsOpen={openDetails.has(schema.fullName)}
-                        onToggle={() => toggle(setOpenSchemas, schema.fullName)}
+                        onToggle={() => {
+                          const opening = !openSchemas.has(schema.fullName);
+                          toggle(setOpenSchemas, schema.fullName);
+                          if (opening) loadSchemaChildren(schema.fullName);
+                        }}
                         onToggleDetails={() => toggle(setOpenDetails, schema.fullName)}
                       />
+                      {schemaOpen && schemaLoading && schema.children.length === 0 && (
+                        <TreeEmpty depth={2} label="Loading tables…" />
+                      )}
+                      {schemaOpen && !schemaLoading && schema.children.length === 0 && (
+                        <TreeEmpty
+                          depth={2}
+                          label={searching ? 'No matching assets' : 'No tables, volumes, or functions'}
+                        />
+                      )}
                       {schemaOpen && schema.children.map((child) => (
                         <TreeRow
                           key={child.fullName}
@@ -214,9 +308,33 @@ function AccessTree({ map }: { map: PermissionMap }) {
                     </div>
                   );
                 })}
+                {catalogOpen && hiddenSchemas > 0 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setVisibleSchemas((current) => ({
+                        ...current,
+                        [catalog.name]: (current[catalog.name] ?? PAGE_SIZE) + PAGE_SIZE,
+                      }))
+                    }
+                    className="w-full rounded-md px-2 py-1.5 text-left text-xs font-medium text-primary hover:bg-muted"
+                    style={{ paddingLeft: 6 + INDENT_PX }}
+                  >
+                    Load more ({hiddenSchemas.toLocaleString()} more schemas)
+                  </button>
+                )}
               </div>
             );
           })}
+          {!searching && visibleTree.length > visibleCatalogs && (
+            <button
+              type="button"
+              onClick={() => setVisibleCatalogs((current) => current + PAGE_SIZE)}
+              className="w-full rounded-md px-2 py-2 text-left text-xs font-medium text-primary hover:bg-muted"
+            >
+              Load more ({(visibleTree.length - visibleCatalogs).toLocaleString()} more catalogs)
+            </button>
+          )}
         </div>
       )}
     </div>

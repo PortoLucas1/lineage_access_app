@@ -5,6 +5,7 @@ import type {
   DirectoryPage,
   IdentityCapabilities,
   IdentityKind,
+  MappedAsset,
   PermissionMap,
 } from '@/shared/types';
 
@@ -43,11 +44,28 @@ export function fetchPermissionMap(
   catalog: string | null,
   principal: string,
   kind?: IdentityKind,
+  source?: 'declared' | 'effective',
 ): Promise<PermissionMap> {
   const query = new URLSearchParams({ principal });
   if (catalog) query.set('catalog', catalog);
   if (kind) query.set('kind', kind);
+  if (source) query.set('source', source);
   return json(`/api/permissions/map?${query}`, '/api/permissions/map');
+}
+
+export async function fetchPermissionMapChildren(
+  catalog: string,
+  schema: string,
+  principal: string,
+  kind?: IdentityKind,
+): Promise<MappedAsset[]> {
+  const query = new URLSearchParams({ catalog, schema, principal });
+  if (kind) query.set('kind', kind);
+  const payload = await json<{ assets?: MappedAsset[] }>(
+    `/api/permissions/map/children?${query}`,
+    '/api/permissions/map/children',
+  );
+  return payload.assets ?? [];
 }
 
 export const CATEGORY_LABELS: Record<AssetCategory, string> = {

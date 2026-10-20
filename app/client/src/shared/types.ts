@@ -165,6 +165,7 @@ export type PermissionMap = {
   truncated: boolean;
   errors: string[];
   categories: Record<AssetCategory, MappedAsset[]>;
+  source: 'declared' | 'effective';
 };
 
 export type ActivityEvent = {

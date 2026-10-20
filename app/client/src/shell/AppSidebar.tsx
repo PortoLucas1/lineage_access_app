@@ -11,12 +11,13 @@ import {
   SidebarRail,
   useSidebar,
 } from '@databricks/appkit-ui/react';
-import { Network, Shield } from 'lucide-react';
+import { FolderGit2, Network, Shield } from 'lucide-react';
 import { useSession } from '@/lib/api';
 
 const navItems = [
-  { to: '/', label: 'Lineage Explorer', icon: Network, end: true },
+  { to: '/lineage', label: 'Lineage Explorer', icon: Network, end: false },
   { to: '/permissions', label: 'Permissions mapping', icon: Shield, end: false },
+  { to: '/setup', label: 'Terraform source', icon: FolderGit2, end: false },
 ];
 
 export function AppSidebar() {
@@ -56,8 +57,8 @@ export function AppSidebar() {
                     {({ isActive }) => (
                       <SidebarMenuButton
                         isActive={
-                          item.to === '/'
-                            ? isActive || location.pathname.startsWith('/lineage')
+                          item.to === '/lineage'
+                            ? isActive || location.pathname === '/'
                             : isActive
                         }
                         tooltip={item.label}

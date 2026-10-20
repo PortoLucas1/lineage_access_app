@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getExecutionContext } from '@databricks/appkit';
 import type { Request } from 'express';
 import type { AssetRow, EdgeRow, GrantRow } from '../db/queries/lineage.js';
 import { appAuthHeaders, authHeaders } from '../lib/auth.js';
@@ -350,24 +351,23 @@ async function getLakeviewDashboardGrants(
       req,
       `/api/2.0/permissions/dashboards/${encodeURIComponent(dashboardId)}`,
     );
-    if (!result.ok) {
+    const acl = result.ok
+      ? (result.body as WorkspacePermissionsResponse).access_control_list
+      : (await permissionsViaAppClient(dashboardId))?.access_control_list;
+    if (!acl) {
       console.error(
-        `[lineage] dashboard permissions lookup failed for ${dashboardId}: HTTP ${result.status} ${result.text}`,
+        `[lineage] dashboard permissions lookup failed for ${dashboardId}: HTTP ${
+          result.ok ? 'empty' : `${result.status} ${result.text}`
+        }`,
       );
       return [];
     }
-    const body = result.body as WorkspacePermissionsResponse;
     const cached = getCachedBiAsset(biId);
     const displayName =
       (await lakeviewName(req, dashboardId))
       ?? (cached?.assetName && cached.assetName !== dashboardId ? cached.assetName : null)
       ?? dashboardId;
-    return grantRowsFromWorkspaceAcl(
-      biId,
-      displayName,
-      'dbsql_dashboard',
-      body.access_control_list ?? [],
-    );
+    return grantRowsFromWorkspaceAcl(biId, displayName, 'dbsql_dashboard', acl);
   } catch (error) {
     console.error(
       `[lineage] dashboard permissions lookup failed for ${dashboardId}: ${error instanceof Error ? error.message : String(error)}`,
@@ -376,11 +376,29 @@ async function getLakeviewDashboardGrants(
   }
 }
 
+async function permissionsViaAppClient(dashboardId: string): Promise<WorkspacePermissionsResponse | null> {
+  try {
+    const { client } = getExecutionContext();
+    const body = await client.permissions.get({
+      request_object_type: 'dashboards',
+      request_object_id: dashboardId,
+    });
+    return body as WorkspacePermissionsResponse;
+  } catch (error) {
+    console.error(
+      `[lineage] dashboard permissions SDK lookup failed for ${dashboardId}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return null;
+  }
+}
+
 /**
- * Databricks Apps OBO tokens often omit the Lakeview `dashboards` scope, so
- * user-token calls 403 even when the viewer can open the dashboard. Retry as
- * the app service principal (which can already read a dashboard it has
- * CAN_READ on).
+ * Try the viewer's OBO token, then the app service principal. Lakeview GET
+ * often 403s on OBO (no `dashboards` Apps scope) but succeeds as the SP.
+ * Workspace Permissions GET needs the `access-management` OAuth scope on
+ * whichever token we send.
  */
 async function fetchWorkspaceJson(
   req: Request,
@@ -393,21 +411,70 @@ async function fetchWorkspaceJson(
     });
   }
 
-  let headers: Headers;
+  const attempts: Headers[] = [];
   try {
-    headers = await authHeaders(req);
+    attempts.push(await authHeaders(req));
   } catch {
-    headers = await appAuthHeaders();
+    // local / missing forwarded token
   }
-  let response = await once(headers);
-  if (response.status === 401 || response.status === 403) {
-    const retry = await once(await appAuthHeaders());
-    if (retry.ok) response = retry;
+  attempts.push(await appAuthHeaders());
+  const allApis = await appSpAllApisHeaders();
+  if (allApis) attempts.push(allApis);
+
+  let lastStatus = 0;
+  let lastText = '';
+  const seen = new Set<string>();
+  for (const headers of attempts) {
+    const auth = headers.get('Authorization') ?? '';
+    if (seen.has(auth)) continue;
+    seen.add(auth);
+    const response = await once(headers);
+    if (response.ok) return { ok: true, body: await response.json() };
+    lastStatus = response.status;
+    lastText = (await response.text()).slice(0, 300);
+    if (response.status !== 401 && response.status !== 403) break;
   }
-  if (!response.ok) {
-    return { ok: false, status: response.status, text: (await response.text()).slice(0, 300) };
+  return { ok: false, status: lastStatus, text: lastText };
+}
+
+/**
+ * Databricks Apps OBO (and sometimes the injected SP token) cannot mint
+ * `access-management`, which Workspace Permissions GET now requires. The app
+ * SP's client credentials can still request `all-apis` for this lookup.
+ */
+async function appSpAllApisHeaders(): Promise<Headers | null> {
+  const clientId = process.env.DATABRICKS_CLIENT_ID;
+  const clientSecret = process.env.DATABRICKS_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return null;
+  try {
+    const response = await fetch(`${workspaceHost()}/oidc/v1/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: clientId,
+        client_secret: clientSecret,
+        scope: 'all-apis',
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) {
+      console.error(
+        `[lineage] app SP all-apis token failed: HTTP ${response.status} ${(await response.text()).slice(0, 200)}`,
+      );
+      return null;
+    }
+    const body = (await response.json()) as { access_token?: string };
+    if (!body.access_token) return null;
+    const headers = new Headers();
+    headers.set('Authorization', `Bearer ${body.access_token}`);
+    return headers;
+  } catch (error) {
+    console.error(
+      `[lineage] app SP all-apis token failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return null;
   }
-  return { ok: true, body: await response.json() };
 }
 
 /** Maps a Workspace Permissions ACL into the GrantRow shape the access panel already understands. */

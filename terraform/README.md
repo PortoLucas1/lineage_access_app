@@ -16,7 +16,7 @@ owner.
    Point the app at this folder (or a workspace copy of it) on the
    **Terraform source** page so the App service principal can read it.
 
-The Lineage & Access Console reads the same `declared-grants.json` for drift
+Lineage & Access Hub reads the same `declared-grants.json` for drift
 comparison on the Permissions mapping page. The app can show the module path
 and catalog/schema you intend to plan against; that UI stores values in the
 browser only. Production still uses env vars:
@@ -108,7 +108,7 @@ python3 ../app/scripts/register_external_lineage.py \
 
 The `access` list inside each entity (who can see that BI tool's dashboard) is
 never pushed anywhere — Unity Catalog doesn't model permissions for an
-external tool's own users. The Lineage & Access Console reads it directly from
+external tool's own users. Lineage & Access Hub reads it directly from
 `external-bi.json` (synced to `app/config/external-bi.json`) to show it in the
 access panel as declared/simulated knowledge, the same way `declared-grants.json`
 backs the Terraform-vs-effective comparison for catalog grants.

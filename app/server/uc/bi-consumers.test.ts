@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { grantRowsFromWorkspaceAcl, tableMatches } from './bi-consumers.js';
+import { grantRowsFromWorkspaceAcl, lakeviewDisplayName, tableMatches } from './bi-consumers.js';
 
 describe('tableMatches', () => {
   it('matches a full three-level name', () => {
@@ -55,5 +55,14 @@ describe('grantRowsFromWorkspaceAcl', () => {
       privilege: 'CAN_MANAGE',
     });
     expect(rows.find((row) => row.principal === 'owner@databricks.com')?.inheritedFromName).toBeNull();
+  });
+});
+
+describe('lakeviewDisplayName', () => {
+  it('reads snake_case and camelCase display names', () => {
+    expect(lakeviewDisplayName({ display_name: '[dbdemos] Bike Insights' })).toBe('[dbdemos] Bike Insights');
+    expect(lakeviewDisplayName({ displayName: 'Bike Insights' })).toBe('Bike Insights');
+    expect(lakeviewDisplayName({ display_name: '  ' })).toBeNull();
+    expect(lakeviewDisplayName({})).toBeNull();
   });
 });

@@ -1,230 +1,230 @@
-# Lineage & Access Console
+# Lineage & Access Hub
 
-A Databricks App for data-platform and governance teams. Pick any Unity Catalog
-table, see **what feeds it**, **what it feeds** (including Databricks AI/BI
-dashboards and Tableau/other BI tools registered via Unity Catalog External
-Lineage), and **who can access it**.
+**See what feeds a table, what it feeds, and who can access it — in one Databricks App.**
 
-The app is tenant-agnostic. Catalog, schema, warehouse, Terraform module path,
-and branding all come from environment variables — nothing in the runtime
-defaults to a specific customer workspace.
+Lineage & Access Hub is a workspace app for data platform and governance teams. Pick any Unity Catalog table and get a live neighborhood graph: upstream sources, downstream tables, Databricks AI/BI dashboards, and external BI tools such as Tableau. Click any node to see who can access it. Compare that live access with the grants you declared in Terraform.
+
+The Hub does not bake in a customer catalog. You point it at **your** warehouse, catalog, schema, and Terraform folder.
 
 ## What you get
 
-| Surface | What it does |
+| Page | What it is for |
 |---|---|
-| **Lineage explorer** | Neighborhood graph around a selected table: upstream sources, downstream tables, Databricks dashboards/notebooks/jobs from `system.access.table_lineage`, plus Tableau (or other BI) connections from Unity Catalog External Lineage. Expand a table node for column lineage. |
-| **Permissions mapping** | Browse users, groups, and service principals; map effective Unity Catalog privileges; compare live grants to a Terraform-declared baseline. |
-| **Access panel** | Direct and inherited grants on the selected asset — searchable, with "Load more" paging so it stays usable on accounts with thousands of identities. |
-| **Assistant** | Optional Genie-backed dock for “what feeds X / who can access Y”. |
+| **Lineage Explorer** | Search Unity Catalog, open a table, and walk upstream → table → downstream consumers. Expand a table for column lineage. |
+| **Access panel** | Direct and inherited grants on the selected asset. Search and page through large identity lists. |
+| **Permissions mapping** | Pick a user, group, or service principal and see the objects they can access — Terraform-declared first, then live Unity Catalog. |
+| **Terraform source** | First-run setup: point the Hub at the workspace folder that holds your grant Terraform. Optional — Skip uses the bundled example. |
 
-## How it works
+---
 
-```text
-Unity Catalog metastore
-  ├─ information_schema           → catalogs, schemas, tables (explorer)
-  ├─ system.access.table_lineage  → table-to-table + native consumers
-  │                                 (DASHBOARD_V3, NOTEBOOK, JOB)
-  ├─ External Lineage API         → external BI consumers (Tableau, ...)
-  │                                 not captured by system.access.* lineage
-  └─ Grants REST API              → effective privileges (permission map)
-           │
-           ▼
-  Databricks App (React + Express on Databricks Apps)
-           │
-           ├─ Lakeview API        → dashboard display names
-           ├─ SCIM                → identities (app service principal)
-           ├─ Lakebase (optional) → grant-review flags + audit trail
-           ├─ terraform/declared-grants.json  → declared vs effective drift
-           └─ terraform/external-bi.json      → declared BI connections +
-                                                 simulated external-tool access
+## How the lineage graph is built
+
+Every node and edge has a source of truth. **Blue** comes from Databricks APIs at query time. **Amber** comes from your Terraform specification (and Unity Catalog External Lineage registered from it).
+
+```mermaid
+flowchart LR
+  subgraph live["Live from Databricks"]
+    direction TB
+    IS["information_schema<br/>catalogs · schemas · tables"]
+    TL["system.access.table_lineage<br/>table → table, notebooks, jobs"]
+    LV["Lakeview + workspace permissions<br/>AI/BI dashboard name and ACLs"]
+    EG["Unity Catalog grants API<br/>effective privileges"]
+    SCIM["SCIM<br/>users, groups, service principals"]
+  end
+
+  subgraph spec["From your Terraform"]
+    direction TB
+    DG["declared-grants.json<br/>+ databricks_permissions.tf<br/>intended Unity Catalog grants"]
+    XB["external-bi.json<br/>+ extsystem_permissions.tf<br/>Tableau / external BI + their access lists"]
+  end
+
+  Hub["Lineage & Access Hub"]
+
+  IS --> Hub
+  TL --> Hub
+  LV --> Hub
+  EG --> Hub
+  SCIM --> Hub
+  DG --> Hub
+  XB --> Hub
 ```
 
-**Lineage graph.** Selecting a three-level table name (`catalog.schema.table`)
-loads a neighborhood from Unity Catalog lineage. The server then attaches BI
-consumers from three sources:
+### What that looks like on a table
 
-1. **Databricks dashboards, notebooks, jobs** — rows in
-   `system.access.table_lineage` where `entity_type` is `DASHBOARD_V3` /
-   `DASHBOARD` / `NOTEBOOK` / `JOB`. Dashboard names are resolved (and cached)
-   with `GET /api/2.0/lakeview/dashboards/{id}`.
-2. **External BI tools registered in Unity Catalog** — `GET
-   /api/2.0/lineage-tracking/external-lineage`, Unity Catalog's
-   [External Lineage](https://docs.databricks.com/aws/en/data-governance/unity-catalog/external-lineage)
-   API (Public Preview). This is the real, native way to tell Unity Catalog
-   "this table is also consumed by Tableau" — external lineage isn't recorded
-   in `system.access.*`, so it needs its own lookup. `scripts/register_external_lineage.py`
-   is the (idempotent) setup step that creates the External Metadata object +
-   lineage relationship; see [Tableau / external BI connections](#5-optional-tableau--external-bi-connections) below.
-3. **Local overlay fallback** — `app/config/external-bi.json`. Only used for a
-   table that matches an entry's pattern but has *no* real External Lineage
-   relationship yet, so you can see the intended graph shape before running
-   the registration step.
+Example: a streaming `rides` table. Databricks already knows the pipeline tables and the AI/BI dashboard that queried it. Tableau is not in `system.access` lineage until you register it — Terraform declares that connection (and who can open the workbook).
 
-BI nodes use ids like `bi:dbsql_dashboard:<id>` so grant/column APIs are not
-called against them; the node drawer lists them under **BI consumers**.
+```mermaid
+flowchart LR
+  raw["rides_raw<br/>streaming table"]
+  rides["rides<br/>streaming table"]
+  dash["Bike Rental Business Insights<br/>Databricks AI/BI"]
+  tab["Rides Operations<br/>Tableau"]
 
-**Access.** Identities are listed via SCIM. Effective privileges use the Unity
-Catalog grants API with the app service principal (Apps OBO does not include
-`unity-catalog` / `scim`). Group membership stays on-behalf-of-user. Unity
-Catalog has no permission model for an external BI tool's own users, so access
-to a Tableau (or other external) node comes from the `access` list declared
-alongside it in `external-bi.json` — a declared/simulated manifest, exactly
-like `declared-grants.json` is for catalog grants, surfaced read-only in the
-access panel.
+  raw -->|"table lineage API"| rides
+  rides -->|"table lineage + Lakeview API"| dash
+  rides -->|"External Lineage registered from Terraform"| tab
 
-**Terraform.** `terraform/` is a review-only grant baseline. The Permissions
-mapping page shows the module path, catalog, and schema so an operator can copy
-a `terraform plan` command. Browser values are local only; the running app
-still reads `TERRAFORM_*` / `DEMO_*` env vars.
+  classDef live fill:#e8f4fc,stroke:#3C6997,color:#094074;
+  classDef tf fill:#fff6e0,stroke:#FE9000,color:#7c4a00;
+  class raw,rides,dash live;
+  class tab tf;
+```
 
-## Prerequisites
+| On the graph / access panel | Source |
+|---|---|
+| Catalog, schema, and table list | Databricks `information_schema` |
+| Table-to-table edges | Databricks `system.access.table_lineage` |
+| Notebook and job consumers | Same lineage system table (`NOTEBOOK`, `JOB`) |
+| AI/BI dashboard node, display name, user ACLs | Lineage entity id + Lakeview + Workspace Permissions APIs |
+| Tableau / other external BI node | Unity Catalog External Lineage, created from Terraform (`external-bi.json` / `extsystem_permissions.tf`) |
+| Who **does** have Unity Catalog access | Unity Catalog effective grants API |
+| Who **should** have Unity Catalog access | Terraform `declared-grants.json` (compared in Permissions mapping and the access panel) |
+| Who can open an external BI asset | `access` list in `external-bi.json` — Unity Catalog has no permission model for Tableau users |
 
-- Databricks CLI **v0.283.0+**
-- A SQL warehouse the app can use (`DATABRICKS_WAREHOUSE_ID`)
-- An authenticated CLI profile
-- Node.js 20+ for local UI work
+Until External Lineage is registered in the workspace, the Hub can still draw the Tableau node from the Terraform overlay so you can review the intended graph. After registration, Unity Catalog is the source of truth and the overlay is only a fallback.
+
+---
+
+## Install
+
+### What you need
+
+- Databricks CLI **v0.283.0+**, authenticated to the target workspace
+- A running SQL warehouse
+- Node.js 20+ only if you will run the UI locally
 - Terraform 1.5+ only if you will manage the grant baseline
 
-## Install in your workspace
+### Deploy to Databricks
 
-### 1. Clone and configure
+The Hub is a Databricks App, shipped as an Asset Bundle. Substitute your catalog, schema, warehouse, and app name.
 
 ```bash
 git clone <this-repo>
 cd lineage_access_app
 ```
 
-Do **not** commit workspace-specific `app.yaml` or production `root_path`
-values. Point the app at your catalog with env vars:
+1. Create the Lakebase database the app uses for grant-review notes (once per workspace):
 
-| Variable | Required | Meaning |
-|---|---|---|
-| `DEMO_CATALOG` | Recommended | Catalog the explorer opens on |
-| `DEMO_SCHEMA` | Recommended | Schema the explorer opens on |
-| `DATABRICKS_WAREHOUSE_ID` | Yes for lineage SQL | Warehouse for `information_schema` / `table_lineage` |
-| `DATABRICKS_HOST` | Yes | Workspace host |
-| `TERRAFORM_MODULE_PATH` | No | Default `terraform` |
-| `TERRAFORM_CATALOG` | No | Falls back to `DEMO_CATALOG` |
-| `TERRAFORM_SCHEMA` | No | Falls back to `DEMO_SCHEMA` |
-| `GENIE_SPACE_ID` | No | Enables the assistant |
+   ```bash
+   ./app/scripts/lakebase_setup_db.sh --db-name dbgen_lineage_access
+   ```
 
-`app/config/app.json` already substitutes these placeholders.
+2. Deploy the schema, app shell, and setup job:
 
-### 2. Local development
+   ```bash
+   databricks bundle deploy \
+     --var catalog=<YOUR_CATALOG> \
+     --var schema=<YOUR_SCHEMA> \
+     --var warehouse_id=<WAREHOUSE_ID> \
+     --var app_name=<YOUR_APP_NAME>
+   ```
+
+3. Run setup (Genie space, app service-principal grants, exported resource ids):
+
+   ```bash
+   databricks bundle run lineage_access_setup \
+     --var catalog=<YOUR_CATALOG> \
+     --var schema=<YOUR_SCHEMA> \
+     --var warehouse_id=<WAREHOUSE_ID>
+   ```
+
+4. Grant the app on Lakebase, then write `app.yaml` and start the app:
+
+   ```bash
+   ./app/scripts/lakebase_grant_app_credential.sh \
+     --app-name <YOUR_APP_NAME> \
+     --project-id <YOUR_LAKEBASE_PROJECT> \
+     --db-name dbgen_lineage_access
+
+   ./app/scripts/finalize_app.sh
+   ```
+
+Set `DEMO_CATALOG` and `DEMO_SCHEMA` in the generated `app.yaml` to the catalog the explorer should open on. Do not commit that file — it is workspace-specific.
+
+Full notes, re-runs, and teardown: [dab_instructions.md](./dab_instructions.md).
+
+### First launch
+
+Open the app URL from the workspace **Compute → Apps** page.
+
+1. **Terraform source** asks for a workspace folder that contains:
+   - `databricks_permissions.tf` — Unity Catalog grants
+   - `extsystem_permissions.tf` — external lineage (Tableau and similar)
+   - `declared-grants.json` — the manifest the Hub compares against live grants
+2. Grant this app’s **service principal `CAN_READ`** on that folder, then **Save and continue**.
+3. Or **Skip** to use the bundled example (including sample grants on `dbdemos_pipeline_bike.rides`).
+
+---
+
+## Use the Hub
+
+### Lineage Explorer
+
+1. In **Unity Catalog**, pick a catalog → schema → table (three-level name).
+2. The graph loads **upstream** on the left, the selected table in the center, and **downstream** on the right.
+3. Click a node to focus it. The right-hand **Access** panel lists principals for that asset.
+4. Use the expand control on a table to see **column lineage**.
+
+Databricks AI/BI dashboards that queried the table appear as consumers with their **Lakeview display name** (not the dashboard id). Tableau (and other external tools you registered) appear as consumers with the name from your Terraform spec.
+
+### Permissions mapping
+
+1. Search a user, group, or service principal.
+2. The tree shows objects from the Terraform baseline immediately, then fills in live Unity Catalog grants.
+3. Catalogs and schemas page in (25 at a time, **Load more**). Expanding a schema loads its tables.
+
+Statuses:
+
+| Badge | Meaning |
+|---|---|
+| **In sync** | Declared in Terraform and effective in Unity Catalog |
+| **Declared only** | In Terraform, not effective yet (or revoked outside Terraform) |
+| **Effective only** | Live in Unity Catalog, not in Terraform (UI, SQL, or another tool) |
+
+### Local UI (optional)
 
 ```bash
 cd app
-cp .env.example .env   # if present; otherwise export the vars above
 npm install
 npm run dev
 ```
 
-Open the printed local URL. Pick a catalog/schema in the explorer — there is
-no hardcoded default table.
+Export `DATABRICKS_HOST`, `DATABRICKS_WAREHOUSE_ID`, `DEMO_CATALOG`, and `DEMO_SCHEMA` (or put them in `.env`). Open the printed local URL.
 
-### 3. Deploy with Databricks Asset Bundles
+---
 
-See [dab_instructions.md](./dab_instructions.md) for the full five-step path
-(Lakebase DB → `bundle deploy` → setup job → Postgres grants → `finalize_app.sh`).
+## Connect Terraform (recommended)
 
-Override every workspace-specific value:
-
-```bash
-databricks bundle deploy \
-  --var catalog=<YOUR_CATALOG> \
-  --var schema=<YOUR_SCHEMA> \
-  --var warehouse_id=<WAREHOUSE_ID> \
-  --var app_name=<YOUR_APP_NAME>
-```
-
-### 4. Terraform grant baseline
+The Hub treats Terraform as the **intended** access model. Live Databricks APIs are **actual** access.
 
 ```bash
 cd terraform
 cp terraform.tfvars.example terraform.tfvars
-# set host, CLI profile, catalog_name, schema_name
-# optional private capture (gitignored): terraform/.declared-grants.json
+# set databricks_host, databricks_profile, catalog_name, schema_name
 terraform init
 terraform plan
 ```
 
-Leave `manage_catalog_grants=false` unless you have reviewed the plan and
-want Terraform to become authoritative for those principals. **Do not apply
-from automation without a human review.**
+Leave `manage_catalog_grants=false` and `manage_external_lineage=false` until a human has reviewed the plan. Do not apply from unattended automation.
 
-In the running app, open **Terraform source** and point it at the workspace
-folder that holds `databricks_permissions.tf` (Unity Catalog) and
-`extsystem_permissions.tf` (external lineage). Skip uses the bundled example.
+Private colleague emails belong in gitignored `terraform/.declared-grants.json`. The public `declared-grants.json` stays as a sanitized example. Terraform and the Hub prefer the hidden file when it exists.
+
+To register Tableau (or another external tool) as real Unity Catalog lineage:
+
+```bash
+python3 app/scripts/register_external_lineage.py \
+  --catalog <catalog> --schema <schema> --profile <cli-profile>
+```
+
+Or set `manage_external_lineage=true` and apply after review.
 
 Details: [terraform/README.md](./terraform/README.md).
 
-### 5. Optional: Tableau / external BI connections
+---
 
-Databricks dashboard connections need no setup — Unity Catalog lineage already
-records `DASHBOARD_V3` consumers. Tableau and other external BI tools aren't
-visible to Databricks at all until you tell Unity Catalog about them, via its
-[External Lineage](https://docs.databricks.com/aws/en/data-governance/unity-catalog/external-lineage)
-feature (Public Preview).
+## Update the app (already deployed)
 
-1. Declare the connection in `terraform/external-bi.json` (one entry per
-   table↔BI-tool link):
-
-   ```json
-   {
-     "entities": [
-       {
-         "id": "tableau-rides-operations",
-         "table": "*.rides",
-         "kind": "tableau_dashboard",
-         "externalMetadataName": "tableau_rides_operations",
-         "name": "Rides Operations",
-         "platform": "Tableau",
-         "systemType": "TABLEAU",
-         "entityType": "dashboard",
-         "url": "https://tableau.example.com/#/site/acme/views/RidesOperations/Overview",
-         "description": "Tableau dashboard that visualizes ride-level metrics.",
-         "access": [
-           { "principal": "someone@example.com", "role": "Viewer", "grantedBy": "tableau-admin@example.com", "grantedDate": "2026-08-14" }
-         ]
-       }
-     ]
-   }
-   ```
-
-   `table` may be a full three-level name or `*.<leaf>` for a tenant-agnostic
-   match. `access` is who can see the BI tool's own asset — Unity Catalog has
-   no permission model for that, so it's a declared manifest the app reads
-   directly, not a live lookup.
-
-2. Copy it into the app (kept in sync and checked by `npm run typecheck`):
-
-   ```bash
-   cp terraform/external-bi.json app/config/external-bi.json
-   ```
-
-3. Register it as real Unity Catalog External Lineage — an External Metadata
-   object plus a lineage relationship from the table to it (idempotent, safe
-   to re-run):
-
-   ```bash
-   python3 app/scripts/register_external_lineage.py \
-     --catalog <catalog> --schema <schema> --profile <cli-profile>
-   ```
-
-   Or let Terraform do it: set `manage_external_lineage = true` in your
-   `terraform.tfvars` and `terraform apply` (gated the same way as
-   `manage_catalog_grants` — leave it `false` until you've reviewed what it
-   will register).
-
-Until step 3 runs, the app still shows the connection using the
-`external-bi.json` entry alone (see "How it works" above) — registering it in
-Unity Catalog makes it a real, native lineage fact instead of an app-side
-overlay.
-
-## App-only updates (already deployed)
-
-`databricks bundle deploy` recreates the UC schema. For app code changes:
+`databricks bundle deploy` recreates the Unity Catalog schema. For Hub code changes only:
 
 ```bash
 ./app/scripts/build-app.sh
@@ -242,5 +242,4 @@ npm run typecheck
 
 ## Architecture
 
-See [architecture.md](./architecture.md) for the platform diagram (Unity Catalog
-+ optional Tableau overlay → lakehouse gold tables → AI/BI + Genie + this app).
+Platform diagram (Unity Catalog + optional Tableau → lakehouse gold tables → AI/BI + Genie + this app): [architecture.md](./architecture.md).

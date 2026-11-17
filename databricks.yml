@@ -106,6 +106,10 @@ resources:
       source_code_path: ./app
       lifecycle:
         prevent_destroy: true
+      # All account users can open/run the app; they cannot edit or manage it.
+      permissions:
+        - level: CAN_USE
+          group_name: account users
       user_api_scopes:
         - serving.serving-endpoints
         - ai-gateway

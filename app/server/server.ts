@@ -81,6 +81,7 @@ import { registerDevLogRoutes } from './routes/dev-log.js';
 import { registerUnityCatalogRoutes } from './routes/unity-catalog.js';
 import { registerPermissionRoutes } from './routes/permissions.js';
 import { registerTerraformRoutes } from './routes/terraform.js';
+import { isTrackedPagePath, trackView } from './lib/tracker.js';
 
 // ============================================================================
 // Config
@@ -477,6 +478,12 @@ await createApp({
     // a standalone param typed as the generic createApp return collapses
     // appkit.server/.analytics to `never`.
     appkit.server.extend((app) => {
+  // Optional dbdemos usage tracking: fire-and-forget, never delays the page.
+  app.use((req, _res, next) => {
+    if (req.method === 'GET' && isTrackedPagePath(req.path)) trackView(req);
+    next();
+  });
+
   // Gate DB-dependent routes until migrations are ready. Lives BEFORE
   // route registration so it applies to every /api/* handler.
   app.use('/api', async (req, res, next) => {

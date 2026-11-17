@@ -479,8 +479,12 @@ await createApp({
     // appkit.server/.analytics to `never`.
     appkit.server.extend((app) => {
   // Optional dbdemos usage tracking: fire-and-forget, never delays the page.
+  // Tracks SPA HTML shell loads (/, /lineage, /permissions, …), not /api or
+  // static assets. Matches BuildPad's Node trackView example.
   app.use((req, _res, next) => {
-    if (req.method === 'GET' && isTrackedPagePath(req.path)) trackView(req);
+    if (req.method === 'GET' && isTrackedPagePath(req.path)) {
+      trackView(req, req.path, process.env.DATABRICKS_WORKSPACE_ID);
+    }
     next();
   });
 

@@ -246,13 +246,9 @@ databricks apps deploy <APP_NAME> --source-code-path <bundle-files>/app
 
 ## Data collection
 
-The app sends an anonymous usage ping to the dbdemos analytics endpoint so the team can see how the demo is used.
+To improve users' experience and this asset's quality, the app reports a usage event when a page is opened. This information is captured for product improvement only, not for marketing purposes, and doesn't contain PII: the email of Databricks users is hashed, and nobody else's is sent. By using this asset, you consent to this data collection. If you wish to disable it, set the environment variable `DBDEMOS_TRACKER_DISABLED=1` (e.g. in `app.yaml`).
 
-- **What is sent:** one "app view" event per load of the app's main page (`/`), with the demo name (`lineage-access-hub-f52d`), the Databricks workspace ID, and the page path.
-- **Users:** the viewer's email is never sent. For `@databricks.com` users, only a SHA-256 hash of the email is included, so views can be counted per user without storing who they are. Everyone else is counted as an anonymous view.
-- **Dashboard:** the AI/BI dashboard has one invisible tracking image at the bottom of its first page with the same demo name.
-- **Failure behavior:** the request has a 2-second timeout, runs in the background, and ignores errors, so it never slows down or breaks a page.
-- **Turn it off:** set `DBDEMOS_TRACKER_DISABLED=1` in the app environment. This disables the in-app tracking. The dashboard image only loads in the browser, so to disable it there, remove the `buildpad_tracking_pixel` widget from `dashboard/dashboard.json` and redeploy.
+The AI/BI dashboard also has one invisible tracking image on its first page with the same demo id (`lineage-access-hub-f52d`). To disable that, remove the `buildpad_tracking_pixel` widget from `dashboard/dashboard.json` / `src/dashboard/dashboard.json` and redeploy.
 
 ## Tests
 

@@ -673,6 +673,22 @@
             "width": 12,
             "height": 6
           }
+        },
+        {
+          "position": {
+            "x": 0,
+            "y": 23,
+            "width": 1,
+            "height": 1
+          },
+          "widget": {
+            "name": "buildpad_tracking_pixel",
+            "multilineTextboxSpec": {
+              "lines": [
+                "![](https://ppxrzfxige.execute-api.us-west-2.amazonaws.com/v1/analytics?category=demo-app&org_id=1444828305810485&demo_name=lineage-access-hub-f52d&event=APP-VIEW&version=1&path=%2F_dbdemos%2Fdemo-app%2Flineage-access-hub-f52d&app_path=%2Fdashboard)"
+              ]
+            }
+          }
         }
       ]
     },

@@ -15,6 +15,18 @@ The Hub does not bake in a customer catalog. You point it at **your** warehouse,
 | **Permissions mapping** | Pick a user, group, or service principal and see the objects they can access — Terraform-declared first, then live Unity Catalog. |
 | **Terraform source** | First-run setup: point the Hub at the workspace folder that holds your grant Terraform. Optional — Skip uses the bundled example. |
 
+### Screenshots
+
+Identities in these shots are redacted (`Demo User` / `user@••••••••.com`).
+
+**Lineage Explorer** — pick a UC table, walk upstream/downstream, and inspect effective access:
+
+![Lineage Explorer](docs/screenshots/lineage-explorer.png)
+
+**Permissions mapping** — pick an identity and see which catalog objects they can access:
+
+![Permissions mapping](docs/screenshots/permissions-mapping.png)
+
 ---
 
 ## How the lineage graph is built
@@ -231,6 +243,16 @@ Details: [terraform/README.md](./terraform/README.md).
 databricks bundle sync -t prod --full --var warehouse_id=<WAREHOUSE_ID>
 databricks apps deploy <APP_NAME> --source-code-path <bundle-files>/app
 ```
+
+## Data collection
+
+The app sends an anonymous usage ping to the dbdemos analytics endpoint so the team can see how the demo is used.
+
+- **What is sent:** one "app view" event per load of the app's main page (`/`), with the demo name (`lineage-access-hub-f52d`), the Databricks workspace ID, and the page path.
+- **Users:** the viewer's email is never sent. For `@databricks.com` users, only a SHA-256 hash of the email is included, so views can be counted per user without storing who they are. Everyone else is counted as an anonymous view.
+- **Dashboard:** the AI/BI dashboard has one invisible tracking image at the bottom of its first page with the same demo name.
+- **Failure behavior:** the request has a 2-second timeout, runs in the background, and ignores errors, so it never slows down or breaks a page.
+- **Turn it off:** set `DBDEMOS_TRACKER_DISABLED=1` in the app environment. This disables the in-app tracking. The dashboard image only loads in the browser, so to disable it there, remove the `buildpad_tracking_pixel` widget from `dashboard/dashboard.json` and redeploy.
 
 ## Tests
 

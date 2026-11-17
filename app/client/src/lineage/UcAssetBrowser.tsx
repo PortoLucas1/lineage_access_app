@@ -29,10 +29,10 @@ export function UcAssetBrowser({
   const [catalogs, setCatalogs] = useState<UcCatalog[]>([]);
   const [schemasByCatalog, setSchemasByCatalog] = useState<Record<string, UcSchema[]>>({});
   const [assetsBySchema, setAssetsBySchema] = useState<Record<string, UcAsset[]>>({});
-  const [expandedCatalogs, setExpandedCatalogs] = useState(() => new Set([defaultCatalog]));
-  const [expandedSchemas, setExpandedSchemas] = useState(
-    () => new Set([`${defaultCatalog}.${defaultSchema}`]),
-  );
+  // Start empty — config/defaultCatalog often arrives after the first render.
+  // Seeding with '' made us call /api/uc/schemas?catalog= and get a 502.
+  const [expandedCatalogs, setExpandedCatalogs] = useState(() => new Set<string>());
+  const [expandedSchemas, setExpandedSchemas] = useState(() => new Set<string>());
   const [loadingKeys, setLoadingKeys] = useState<Set<string>>(new Set());
   const [catalogFilter, setCatalogFilter] = useState('');
   const [catalogsLoading, setCatalogsLoading] = useState(true);
@@ -87,8 +87,20 @@ export function UcAssetBrowser({
       });
   }, []);
 
+  // Once defaults are known, expand the demo catalog/schema (once).
+  useEffect(() => {
+    if (!defaultCatalog) return;
+    setExpandedCatalogs((current) =>
+      current.has(defaultCatalog) ? current : new Set(current).add(defaultCatalog),
+    );
+    if (!defaultSchema) return;
+    const key = `${defaultCatalog}.${defaultSchema}`;
+    setExpandedSchemas((current) => (current.has(key) ? current : new Set(current).add(key)));
+  }, [defaultCatalog, defaultSchema]);
+
   useEffect(() => {
     for (const catalog of expandedCatalogs) {
+      if (!catalog) continue;
       load(catalog, () => fetchUcSchemas(catalog), (rows) =>
         setSchemasByCatalog((current) => ({ ...current, [catalog]: rows })),
       );

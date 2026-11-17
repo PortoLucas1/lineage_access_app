@@ -36,12 +36,14 @@ export function fetchUcCatalogs(search = ''): Promise<UcCatalog[]> {
 }
 
 export function fetchUcSchemas(catalog: string): Promise<UcSchema[]> {
-  const query = new URLSearchParams({ catalog });
+  if (!catalog.trim()) return Promise.resolve([]);
+  const query = new URLSearchParams({ catalog: catalog.trim() });
   return json(`/api/uc/schemas?${query}`, '/api/uc/schemas');
 }
 
 export function fetchUcAssets(catalog: string, schema: string): Promise<UcAsset[]> {
-  const query = new URLSearchParams({ catalog, schema });
+  if (!catalog.trim() || !schema.trim()) return Promise.resolve([]);
+  const query = new URLSearchParams({ catalog: catalog.trim(), schema: schema.trim() });
   return json(`/api/uc/assets?${query}`, '/api/uc/assets');
 }
 

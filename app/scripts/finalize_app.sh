@@ -100,13 +100,18 @@ if [[ ! -f "$APP_YAML_TEMPLATE" ]]; then
 fi
 
 python3 - "$RESOURCES_JSON" "$APP_YAML_TEMPLATE" "$APP_YAML" <<'PYEOF'
-import sys, json
+import os, sys, json
 resources = json.loads(sys.argv[1])
 template_path, out_path = sys.argv[2], sys.argv[3]
 
 # Env vars the app reads (config/app.json placeholders). value_from entries
 # are platform bindings (warehouse + postgres); plain values come from the
 # harvested resources JSON.
+workspace_id = (
+    os.environ.get("DATABRICKS_WORKSPACE_ID")
+    or resources.get("workspace_id")
+    or "1444828305810485"  # e2-demo-field-eng — required by dbdemos-tracker
+)
 env_lines = [
     ("NODE_ENV", "production"),
     # binding-derived (the platform injects these from databricks.yml's
@@ -114,6 +119,9 @@ env_lines = [
     ("__VALUEFROM__DATABRICKS_WAREHOUSE_ID", "sql-warehouse"),
     ("__VALUEFROM__WAREHOUSE_ID", "sql-warehouse"),
     ("__VALUEFROM__LAKEBASE_ENDPOINT", "postgres"),
+    # dbdemos-tracker / BuildPad — pin workspace id so APP-VIEW events aren't
+    # silently dropped when the Apps runtime doesn't inject it.
+    ("DATABRICKS_WORKSPACE_ID", workspace_id),
     # plain values from the setup job's exit JSON
     ("DEMO_CATALOG", resources["catalog"]),
     ("DEMO_SCHEMA", resources["schema"]),

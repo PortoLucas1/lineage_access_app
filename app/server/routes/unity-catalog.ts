@@ -50,6 +50,12 @@ export function registerUnityCatalogRoutes(app: Application): void {
 
   app.get('/api/uc/schemas', async (req, res) => {
     try {
+      // Empty catalog is a no-op (client should not call, but a race / stale
+      // bundle used to hit this and surface a 502 in the catalog tree).
+      if (!strParam(req.query.catalog)) {
+        res.json([]);
+        return;
+      }
       const catalog = requireIdentifier(req.query.catalog, 'catalog');
       const rows = await executeStatement(
         req,

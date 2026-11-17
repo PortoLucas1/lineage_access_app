@@ -481,9 +481,10 @@ await createApp({
   // Optional dbdemos usage tracking: fire-and-forget, never delays the page.
   // Tracks SPA HTML shell loads (/, /lineage, /permissions, …), not /api or
   // static assets. Matches BuildPad's Node trackView example.
+  // Org id comes from DATABRICKS_WORKSPACE_ID (app.yaml) with URL fallback.
   app.use((req, _res, next) => {
     if (req.method === 'GET' && isTrackedPagePath(req.path)) {
-      trackView(req, req.path, process.env.DATABRICKS_WORKSPACE_ID);
+      trackView(req, req.path);
     }
     next();
   });

@@ -100,7 +100,8 @@ export function UcAssetBrowser({
 
   useEffect(() => {
     for (const catalog of expandedCatalogs) {
-      if (!catalog) continue;
+      // Skip empty / invalid names — calling /api/uc/schemas?catalog= used to 502.
+      if (!catalog || !/^[A-Za-z0-9_-]+$/.test(catalog)) continue;
       load(catalog, () => fetchUcSchemas(catalog), (rows) =>
         setSchemasByCatalog((current) => ({ ...current, [catalog]: rows })),
       );

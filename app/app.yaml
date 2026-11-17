@@ -27,11 +27,16 @@ user_authorization:
     - catalog.catalogs:read
     - catalog.schemas:read
     - catalog.tables:read
-    - identity:read
+    - workspace.workspace
 
 env:
   - name: NODE_ENV
     value: "production"
+  # Required by dbdemos-tracker (BuildPad). Apps docs say this is auto-injected,
+  # but if it's missing every APP-VIEW is silently skipped. Pin the workspace
+  # id from the app URL (…-1444828305810485.aws.databricksapps.com).
+  - name: DATABRICKS_WORKSPACE_ID
+    value: "1444828305810485"
   - name: DATABRICKS_WAREHOUSE_ID
     valueFrom: sql-warehouse
   - name: WAREHOUSE_ID
@@ -39,17 +44,17 @@ env:
   - name: LAKEBASE_ENDPOINT
     valueFrom: postgres
   - name: DEMO_CATALOG
-    value: "serverless_sandbox_melissap_catalog"
+    value: "porto_catalog"
   - name: DEMO_SCHEMA
-    value: "dev_melissa_pang_demo_lineage_access_for_every_team_b89e91"
+    value: "dev_lucas_porto_lineage_access_demo"
   - name: DASHBOARD_ID
-    value: "01f1b1deea5d16b4954a63d1a84cb0ac"
+    value: "01f1e287a91a19a0a9abc27455781146"
   - name: PIPELINE_ID
     value: ""
   - name: AGENT_MLFLOW_EXPERIMENT_PATH
     value: "/Shared/solution_builder/dbgen-lineage-access-agent-traces"
   - name: GENIE_SPACE_ID
-    value: "01f1b1df2a7c12dd85a33c753c3fa3ea"
+    value: "01f1e2880d441be98b2685e2c8cbcc05"
   - name: KA_ENDPOINT_NAME
     value: ""
   - name: MAS_ENDPOINT_NAME
